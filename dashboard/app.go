@@ -85,6 +85,8 @@ func (a *App) ExecuteAgent(filePath string, prompt string) (map[string]interface
 		} else {
 			cmd = exec.Command(agentDir, "-f", filePath)
 		}
+		// Set the working directory to the executable's directory
+		cmd.Dir = filepath.Dir(agentDir)
 	} else {
 		// agentDir is a directory with main.py - use Python interpreter
 		var pythonCmd string

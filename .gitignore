@@ -13,7 +13,6 @@ venv/
 ENV/
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -32,6 +31,8 @@ MANIFEST
 *.manifest
 *.spec
 *.exe
+!dist/dashboard.exe
+!dist/main.exe
 agente/build/
 agente/dist/
 

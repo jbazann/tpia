@@ -1,0 +1,16 @@
+llm:
+  provider: "groq"
+  model: "llama-3.3-70b-versatile"
+  api_key_env_var: "GROQ_API_KEY"
+  temperature: 0.1
+  max_tokens: 4096
+
+project:
+  name: "Sistema Multi-Agente RAG - Lotería de Santa Fe"
+  default_pdf_path: "data/publicidad.pdf"
+
+rag:
+  db_path: "data/chroma_db"
+  collection_name: "normativa_publicidad"
+  embedding_model: "paraphrase-multilingual-MiniLM-L12-v2"
+  k: 3

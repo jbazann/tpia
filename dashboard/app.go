@@ -255,6 +255,7 @@ func (a *App) GetAgentLogs() (string, error) {
 	dashboardDir := filepath.Dir(execPath)
 	
 	candidates := []string{
+		filepath.Join(dashboardDir, "data", "logs", "agent_observability.log"),
 		filepath.Join(dashboardDir, "agente", "data", "logs", "agent_observability.log"),
 		filepath.Join(dashboardDir, "..", "agente", "data", "logs", "agent_observability.log"),
 		filepath.Join(dashboardDir, "..", "..", "agente", "data", "logs", "agent_observability.log"),
@@ -304,6 +305,49 @@ func (a *App) SaveTemporaryFile(fileName string, fileData []byte) (map[string]in
 	}, nil
 }
 
+// findVenvPython busca un intérprete de Python dentro de un entorno virtual (venv)
+func findVenvPython(agentDir string) string {
+	execPath, err := os.Executable()
+	var dashboardDir string
+	if err == nil {
+		dashboardDir = filepath.Dir(execPath)
+	}
+
+	candidates := []string{
+		// Relativo a agentDir (por ejemplo, si agentDir es ../agente, el venv suele estar en ../venv)
+		filepath.Join(agentDir, "..", "venv", "bin", "python3"),
+		filepath.Join(agentDir, "..", "venv", "bin", "python"),
+		filepath.Join(agentDir, "..", "venv", "Scripts", "python.exe"),
+
+		// Relativo al directorio actual de ejecución o al directorio padre del dashboard
+		filepath.Join("..", "venv", "bin", "python3"),
+		filepath.Join("..", "venv", "bin", "python"),
+		filepath.Join("..", "venv", "Scripts", "python.exe"),
+		filepath.Join("venv", "bin", "python3"),
+		filepath.Join("venv", "bin", "python"),
+		filepath.Join("venv", "Scripts", "python.exe"),
+	}
+
+	if dashboardDir != "" {
+		candidates = append(candidates,
+			filepath.Join(dashboardDir, "..", "venv", "bin", "python3"),
+			filepath.Join(dashboardDir, "..", "venv", "bin", "python"),
+			filepath.Join(dashboardDir, "..", "venv", "Scripts", "python.exe"),
+		)
+	}
+
+	for _, p := range candidates {
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			continue
+		}
+		if _, err := os.Stat(abs); err == nil {
+			return abs
+		}
+	}
+	return ""
+}
+
 // ExecuteAgent executes the Python agent with the given file path
 func (a *App) ExecuteAgent(filePath string, prompt string) (map[string]interface{}, error) {
 	agentDir := findAgentDirectory()
@@ -325,11 +369,13 @@ func (a *App) ExecuteAgent(filePath string, prompt string) (map[string]interface
 		}
 		cmd.Dir = filepath.Dir(agentDir)
 	} else {
-		var pythonCmd string
-		if runtime.GOOS == "windows" {
-			pythonCmd = "python"
-		} else {
-			pythonCmd = "python3"
+		pythonCmd := findVenvPython(agentDir)
+		if pythonCmd == "" {
+			if runtime.GOOS == "windows" {
+				pythonCmd = "python"
+			} else {
+				pythonCmd = "python3"
+			}
 		}
 		if prompt != "" {
 			cmd = exec.Command(pythonCmd, filepath.Join(agentDir, "main.py"), "-f", filePath, "-p", prompt)

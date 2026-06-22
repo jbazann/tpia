@@ -51,8 +51,12 @@ class TeeLogger:
 
 def main():
     # Inicializar Observabilidad
-    base_path = get_base_path()
-    log_file = os.path.join(base_path, "data", "logs", "agent_observability.log")
+    if getattr(sys, 'frozen', False):
+        base_dir = Path(sys.executable).parent
+    else:
+        base_dir = Path(__file__).parent
+
+    log_file = os.path.join(base_dir, "data", "logs", "agent_observability.log")
     sys.stdout = TeeLogger(log_file, sys.stdout)
     sys.stderr = TeeLogger(log_file, sys.stderr)
 

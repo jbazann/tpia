@@ -232,6 +232,12 @@ function Create-Distribution {
     if (Test-Path $dashboardExe) {
         Copy-Item -Path $dashboardExe -Destination $dashboardOutput -Force
         Write-Success "[OK] Dashboard executable copied to dist/"
+    } else {
+        if ($SkipDashboardBuild) {
+            Write-Info "[-] Dashboard build skipped, no dashboard binary copied to dist/"
+        } else {
+            Write-Fail "Dashboard executable not found at $dashboardExe - cannot include in distribution"
+        }
     }
 
     # Strictly require agente/dist/agente.exe
@@ -241,7 +247,11 @@ function Create-Distribution {
         Copy-Item -Path $agentExe -Destination $agentOutput -Force
         Write-Success "[OK] Agent executable copied to dist/"
     } else {
-        Write-Fail "Agent executable not found at $agentExe - cannot include in distribution"
+        if ($SkipAgentBuild) {
+            Write-Info "[-] Agent build skipped, no agent binary copied to dist/"
+        } else {
+            Write-Fail "Agent executable not found at $agentExe - cannot include in distribution"
+        }
     }
 
     # Copy config.yaml
@@ -293,9 +303,7 @@ function Main {
     }
 
     # Create distribution
-    if (-not $SkipAgentBuild -and -not $SkipDashboardBuild) {
-        Create-Distribution
-    }
+    Create-Distribution
 
     Write-Host ""
     Write-Success "======================================"

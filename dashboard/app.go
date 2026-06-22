@@ -439,6 +439,24 @@ func findAgentDirectory() string {
 }
 
 func findAgentSourceDirectory() string {
+	// Intentar resolver relativo al ejecutable del dashboard
+	execPath, err := os.Executable()
+	if err == nil {
+		dashboardDir := filepath.Dir(execPath)
+		execRelCandidates := []string{
+			filepath.Join(dashboardDir, "agente"),
+			filepath.Join(dashboardDir, "..", "agente"),
+			filepath.Join(dashboardDir, "..", "..", "agente"),
+		}
+		for _, path := range execRelCandidates {
+			abs, err := filepath.Abs(path)
+			if err == nil && fileExists(filepath.Join(abs, "main.py")) {
+				return abs
+			}
+		}
+	}
+
+	// Fallback: relativo al directorio de trabajo actual
 	candidates := []string{
 		"../../agente", "../agente", "./agente",
 		"/opt/tpia/agente", `C:\tpia\agente`,

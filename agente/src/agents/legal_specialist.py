@@ -17,9 +17,14 @@ class LegalSpecialistAgent:
     def __call__(self, state: EstadoEvaluacion) -> dict:
         print(f"[ESPECIALISTA] Evaluando compatibilidad normativa mediante PLN cognitivo...")
 
-        system_prompt = """
-        Sos un inspector técnico y auditor legal de la Lotería de Santa Fe. Tu único rol es contrastar el contenido de la publicidad contra el marco regulatorio provisto.
-        Analizá detalladamente si la pieza publicitaria cumple o si infringe la norma.
+        regla = state.get('regla_actual', {})
+        regla_nombre = regla.get('rule_name', 'Evaluación general')
+        regla_desc = regla.get('payload', '')
+
+        system_prompt = f"""
+        Sos un inspector técnico y auditor legal de la Lotería de Santa Fe. Tu único rol es contrastar el contenido de la publicidad contra el marco regulatorio provisto,
+        enfocándote ESPECÍFICAMENTE en la siguiente regla o criterio: {regla_nombre} ({regla_desc}).
+        Analizá detalladamente si la pieza publicitaria cumple o si infringe la norma en este aspecto específico.
 
         REGLA DE ORO: Sé riguroso y formal. No inventes regulaciones. Basate ESTRICTAMENTE en las cláusulas provistas en el contexto.
         """

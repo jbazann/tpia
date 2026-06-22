@@ -1,6 +1,7 @@
 # Build outputs
 # dist/ # no excluir para distribuir binarios
 build/
+dist/main.exe # mejor este si xq pesa 500mb
 
 # Python
 __pycache__/
@@ -32,7 +33,6 @@ MANIFEST
 *.spec
 *.exe
 !dist/dashboard.exe
-!dist/main.exe
 agente/build/
 agente/dist/
 

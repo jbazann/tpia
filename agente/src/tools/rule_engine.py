@@ -27,24 +27,51 @@ class RuleEngine:
 
     def _init_database(self):
         """Inicializa la base de datos SQLite si no existe."""
-        if not os.path.exists(self.db_path):
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Tabla de reglas
-            cursor.execute("""
-                CREATE TABLE rules (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    rule_name TEXT NOT NULL UNIQUE,
-                    priority INTEGER DEFAULT 0,
-                    target_agent TEXT NOT NULL,
-                    action_type TEXT DEFAULT 'invoke_subagent',
-                    payload TEXT,
-                    is_active INTEGER DEFAULT 1
-                )
-            """)
-            
-            # Insertar reglas por defecto
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Tabla de reglas
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_name TEXT NOT NULL UNIQUE,
+                priority INTEGER DEFAULT 0,
+                target_agent TEXT NOT NULL,
+                action_type TEXT DEFAULT 'invoke_subagent',
+                payload TEXT,
+                is_active INTEGER DEFAULT 1
+            )
+        """)
+        
+        # Tabla de sesiones
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_id TEXT PRIMARY KEY,
+                document_name TEXT,
+                final_verdict TEXT,
+                created_at TEXT,
+                closed_at TEXT
+            )
+        """)
+        
+        # Tabla de evaluaciones de reglas individuales
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rule_evaluations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT,
+                rule_id INTEGER,
+                rule_name TEXT,
+                verdict TEXT,
+                justification TEXT,
+                evaluated_at TEXT,
+                FOREIGN KEY(session_id) REFERENCES sessions(session_id),
+                FOREIGN KEY(rule_id) REFERENCES rules(id)
+            )
+        """)
+        
+        # Insertar reglas por defecto si está vacía
+        cursor.execute("SELECT COUNT(*) FROM rules")
+        if cursor.fetchone()[0] == 0:
             default_rules = [
                 ("run_legal_evaluation", 1, "legal_evaluation_flow", "invoke_subagent", "Analizar publicidad"),
                 ("summarize_content", 2, "summarizer_agent", "invoke_subagent", "Resumir el contenido del documento"),
@@ -58,12 +85,12 @@ class RuleEngine:
                     INSERT INTO rules (rule_name, priority, target_agent, action_type, payload, is_active)
                     VALUES (?, ?, ?, ?, ?, 1)
                 """, (rule_name, priority, target_agent, action_type, payload))
-            
-            conn.commit()
-            conn.close()
-            print("[RuleEngine] Base de datos inicializada con reglas por defecto.")
+        
+        conn.commit()
+        conn.close()
+        print("[RuleEngine] Base de datos de reglas inicializada.")
 
-    def start_session(self, session_id: str = None) -> str:
+    def start_session(self, session_id: str = None, document_name: str = "Desconocido") -> str:
         """
         Inicia una nueva sesión del agente.
         Resetea el estado de las reglas evaluadas.
@@ -75,9 +102,11 @@ class RuleEngine:
         session_file = os.path.join(self.sessions_dir, f"{session_id}.json")
         
         # Estado inicial de la sesión
+        created_at = datetime.now().isoformat()
         session_state = {
             "session_id": session_id,
-            "created_at": datetime.now().isoformat(),
+            "document_name": document_name,
+            "created_at": created_at,
             "executed_rules": [],  # Lista de reglas ya ejecutadas
             "current_step": 0,  # Índice de la próxima regla a ejecutar
             "is_active": True
@@ -85,8 +114,18 @@ class RuleEngine:
         
         with open(session_file, 'w') as f:
             json.dump(session_state, f, indent=2)
+            
+        # Registrar en la base de datos
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR IGNORE INTO sessions (session_id, document_name, created_at)
+            VALUES (?, ?, ?)
+        """, (session_id, document_name, created_at))
+        conn.commit()
+        conn.close()
         
-        print(f"[RuleEngine] Sesión iniciada: {session_id}")
+        print(f"[RuleEngine] Sesión iniciada: {session_id} para documento: {document_name}")
         return session_id
 
     def _load_session(self, session_id: str) -> dict:
@@ -149,6 +188,44 @@ class RuleEngine:
                 "payload": next_rule["payload"]
             }
         ]
+
+    def submit_rule_verdict(self, session_id: str, rule_id: int, rule_name: str, verdict: str, justification: str):
+        """Registra el veredicto para una regla individual en la base de datos."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO rule_evaluations (session_id, rule_id, rule_name, verdict, justification, evaluated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (session_id, rule_id, rule_name, verdict, justification, datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+        print(f"[RuleEngine] Veredicto '{verdict}' registrado para la regla {rule_name} (ID: {rule_id}).")
+        
+        # Marcar regla como ejecutada para avanzar el estado
+        self.mark_rule_executed(session_id, rule_id)
+
+    def compute_final_verdict(self, session_id: str) -> str:
+        """Calcula el veredicto final basado en la jerarquía de los veredictos individuales."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT verdict FROM rule_evaluations WHERE session_id = ?", (session_id,))
+        evaluations = cursor.fetchall()
+        
+        final_verdict = "APROBAR"
+        if evaluations:
+            verdicts = [e[0] for e in evaluations]
+            if "RECHAZAR" in verdicts:
+                final_verdict = "RECHAZAR"
+            elif "REVISAR" in verdicts:
+                final_verdict = "REVISAR"
+                
+        # Actualizar la sesión en la base de datos
+        cursor.execute("UPDATE sessions SET final_verdict = ? WHERE session_id = ?", (final_verdict, session_id))
+        conn.commit()
+        conn.close()
+        
+        print(f"[RuleEngine] Veredicto final calculado: {final_verdict} para sesión {session_id}.")
+        return final_verdict
 
     def mark_rule_executed(self, session_id: str, rule_id: int):
         """Marca una regla como ejecutada en la sesión."""

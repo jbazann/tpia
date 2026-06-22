@@ -16,8 +16,12 @@ class VerdictIssuerAgent:
     def __call__(self, state: EstadoEvaluacion) -> dict:
         print("[EMISOR DE VEREDICTO] Analizando informe técnico para emitir dictamen de cierre...")
 
-        system_prompt = """
-        Sos el juez de control y director administrativo de la Lotería de Santa Fe. Tu rol es revisar el informe del inspector técnico y emitir una resolución definitiva.
+        regla = state.get('regla_actual', {})
+        regla_nombre = regla.get('rule_name', 'Evaluación general')
+
+        system_prompt = f"""
+        Sos el juez de control y director administrativo de la Lotería de Santa Fe. Tu rol es revisar el informe del inspector técnico y emitir una resolución definitiva
+        para la regla específica: {regla_nombre}.
         Tu respuesta debe seguir OBLIGATORIAMENTE este formato estructurado:
 
         VEREDICTO: [Colocá únicamente una de estas opciones: APROBAR, RECHAZAR o REVISAR]

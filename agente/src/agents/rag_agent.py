@@ -13,7 +13,9 @@ class RAGAgent:
         print(f"\n[ORQUESTADOR RAG] Planificando evaluación para la Solicitud {state.get('solicitud_id', 'N/A')}")
         
         tipo_medio = state.get('tipo_medio', '')
-        query_busqueda = f"Publicidad {tipo_medio}"
+        regla = state.get('regla_actual', {})
+        regla_desc = regla.get('payload', '') if regla else ''
+        query_busqueda = f"Publicidad {tipo_medio} {regla_desc}".strip()
         
         chunks_recuperados = self.retriever.invoke(query_busqueda)
         contexto_ley = "\n\n".join([f"[{c.metadata['titulo']}]: {c.page_content}" for c in chunks_recuperados])

@@ -4,6 +4,8 @@ import {main} from '../models';
 
 export function AddRule(arg1:string,arg2:string,arg3:string,arg4:string,arg5:number):Promise<number>;
 
+export function CheckAgentStatus():Promise<string>;
+
 export function CleanupTemporaryFiles():Promise<void>;
 
 export function DeleteRule(arg1:number):Promise<void>;

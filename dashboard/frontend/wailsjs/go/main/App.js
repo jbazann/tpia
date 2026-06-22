@@ -6,6 +6,10 @@ export function AddRule(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['AddRule'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function CheckAgentStatus() {
+  return window['go']['main']['App']['CheckAgentStatus']();
+}
+
 export function CleanupTemporaryFiles() {
   return window['go']['main']['App']['CleanupTemporaryFiles']();
 }

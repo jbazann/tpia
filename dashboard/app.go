@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -354,6 +355,45 @@ func (a *App) ExecuteAgent(filePath string, prompt string) (map[string]interface
 		"status":  "procesado",
 		"output":  string(output),
 	}, nil
+}
+
+// CheckAgentStatus comprueba el estado actual del agente y devuelve un código de estado
+func (a *App) CheckAgentStatus() string {
+	agentDir := findAgentDirectory()
+	if agentDir == "" {
+		return "AGENTE_NO_ENCONTRADO"
+	}
+	
+	// Para ver si hay API key, buscamos en las mismas variables de entorno y en los archivos .env
+	apiKey := os.Getenv("GROQ_API_KEY")
+	if apiKey == "" {
+		// Intentar buscar .env en candidatos comunes para verificar si contiene la clave
+		execPath, err := os.Executable()
+		if err == nil {
+			dashboardDir := filepath.Dir(execPath)
+			potentialPaths := []string{
+				filepath.Join(dashboardDir, ".env"),
+				filepath.Join(dashboardDir, "..", ".env"),
+				filepath.Join(dashboardDir, "agente", ".env"),
+				filepath.Join("..", ".env"),
+				".env",
+			}
+			for _, path := range potentialPaths {
+				if fileExists(path) {
+					// Leer contenido rudimentariamente o usar un lector simple para ver si contiene GROQ_API_KEY
+					if data, err := os.ReadFile(path); err == nil {
+						content := string(data)
+						if strings.Contains(content, "GROQ_API_KEY=gsk_") && !strings.Contains(content, "GROQ_API_KEY=gsk_TuClaveDeApiAqui") {
+							return "OK"
+						}
+					}
+				}
+			}
+		}
+		return "SIN_API_KEY"
+	}
+	
+	return "OK"
 }
 
 func isExecutable(path string) bool {

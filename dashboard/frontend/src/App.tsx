@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import './App.css';
-import { SaveTemporaryFile, ExecuteAgent, CleanupTemporaryFiles, GetRules, AddRule, DeleteRule, ToggleRule, GetAgentLogs } from "../wailsjs/go/main/App.js";
+import { SaveTemporaryFile, ExecuteAgent, CleanupTemporaryFiles, GetRules, AddRule, DeleteRule, ToggleRule, GetAgentLogs, CheckAgentStatus } from "../wailsjs/go/main/App.js";
 import utnLogo from './assets/images/logo-utn.png';
 import loteriaLogo from './assets/images/logo-loteria.webp';
 
@@ -55,6 +55,28 @@ function App() {
         }
     };
 
+    const [serviceStatus, setServiceStatus] = useState<string>("Verificando...");
+    const [statusColor, setStatusColor] = useState<string>("var(--gray-400)");
+
+    const updateServiceStatus = async () => {
+        try {
+            const status = await CheckAgentStatus();
+            if (status === 'OK') {
+                setServiceStatus('Disponible');
+                setStatusColor('#4caf50');
+            } else if (status === 'SIN_API_KEY') {
+                setServiceStatus('Sin API Key (.env)');
+                setStatusColor('#ff9800');
+            } else {
+                setServiceStatus('Agente No Encontrado');
+                setStatusColor('#f44336');
+            }
+        } catch (e) {
+            setServiceStatus('Error');
+            setStatusColor('#f44336');
+        }
+    };
+
     // Cargar reglas desde la BD al montar la sección de reglas
     const loadRules = async () => {
         setRulesLoading(true);
@@ -72,7 +94,12 @@ function App() {
     useEffect(() => {
         if (activeMenu === 'reglas') loadRules();
         if (activeMenu === 'observabilidad') refreshLogs();
+        if (activeMenu === 'agente') updateServiceStatus();
     }, [activeMenu]);
+
+    useEffect(() => {
+        updateServiceStatus();
+    }, []);
 
     // Handle drag events for file upload
     const handleDrag = (e: React.DragEvent) => {
@@ -382,7 +409,7 @@ function App() {
                         <div className="status-container">
                             <div className="status-item">
                                 <label className="status-label">Estado del Servicio:</label>
-                                <div className="status-value">Disponible</div>
+                                <div className="status-value" style={{ color: statusColor, fontWeight: 'bold' }}>{serviceStatus}</div>
                             </div>
                             <div className="status-item">
                                 <label className="status-label">Archivos Pendientes:</label>

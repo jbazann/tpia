@@ -58,11 +58,24 @@ def ocr_image(image_b64: str, ext: str = "png") -> str:
     try:
         img_bytes = base64.b64decode(image_b64)
         image = Image.open(io.BytesIO(img_bytes))
+        
+        print("\n" + "="*50)
+        print("[TOOL_CALL] pytesseract - OCR Extraction")
+        print(f"Input image dimensions: {image.size} | Format: {image.format}")
+        print("="*50 + "\n")
+
         # lang='spa' para español; fallback a 'eng' si no está el paquete de idioma
         try:
             text = pytesseract.image_to_string(image, lang="spa")
         except pytesseract.TesseractError:
             text = pytesseract.image_to_string(image, lang="eng")
+        
+        print("\n" + "="*50)
+        print("[TOOL_RESULT] pytesseract - OCR Extraction")
+        print(f"Result text size: {len(text)} characters")
+        print(f"Text preview: {text.strip()[:150]}...")
+        print("="*50 + "\n")
+        
         return text.strip()
     except Exception as e:
         print(f"[ImageTools] Error en OCR: {e}")
@@ -98,6 +111,12 @@ Analizá la imagen y describí en detalle:
 Sé conciso y técnico."""
 
     try:
+        print("\n" + "="*50)
+        print("[TOOL_CALL] Groq Multimodal Vision (LLaVA)")
+        print(f"Model: {model}")
+        print(f"Input: Image base64 data (Size: {len(image_b64)} chars) | Ext: {ext}")
+        print("="*50 + "\n")
+
         response = client.chat.completions.create(
             model=model,
             messages=[
@@ -111,7 +130,14 @@ Sé conciso y técnico."""
             ],
             max_tokens=512,
         )
-        return response.choices[0].message.content.strip()
+        result = response.choices[0].message.content.strip()
+
+        print("\n" + "="*50)
+        print("[TOOL_RESULT] Groq Multimodal Vision (LLaVA)")
+        print(f"Result: {result[:200]}...")
+        print("="*50 + "\n")
+
+        return result
     except Exception as e:
         print(f"[ImageTools] Error en descripción semántica: {e}")
         return f"No se pudo analizar la imagen: {str(e)}"

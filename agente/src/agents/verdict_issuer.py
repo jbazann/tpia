@@ -53,7 +53,20 @@ No agregues ningún texto adicional antes o después de este esquema."""
 
         user_prompt = f"Informe del inspector técnico:\n{state.get('reporte_especialista', '')}"
 
+        print("\n" + "="*50)
+        print("[LLM_CALL] ChatGroq - Emisor de Veredicto")
+        print(f"Model: {self.llm.model_name}")
+        print("System Prompt:\n" + system_prompt)
+        print("User Prompt:\n" + user_prompt)
+        print("="*50 + "\n")
+
         resp = self.llm.invoke([SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)])
+
+        print("\n" + "="*50)
+        print("[LLM_RESPONSE] ChatGroq - Emisor de Veredicto")
+        print("Content:\n" + resp.content)
+        print("="*50 + "\n")
+
         dictamen_final = resp.content
 
         veredicto_limpio = _parse_veredicto(dictamen_final)

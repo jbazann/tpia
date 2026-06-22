@@ -19,7 +19,20 @@ class RAGAgent:
         # Query semántica orientada al tipo de medio detectado automáticamente
         query_busqueda = f"Requisitos normativos para publicidad {tipo_medio} Lotería Santa Fe"
 
+        print("\n" + "="*50)
+        print("[TOOL_CALL] ChromaDB + BM25 Híbrido (RAG)")
+        print(f"Query: {query_busqueda}")
+        print("="*50 + "\n")
+
         chunks_recuperados = self.retriever.invoke(query_busqueda)
+
+        print("\n" + "="*50)
+        print("[TOOL_RESULT] ChromaDB + BM25 Híbrido (RAG)")
+        print(f"Retrieved {len(chunks_recuperados)} chunks.")
+        for idx, c in enumerate(chunks_recuperados):
+            print(f"  Chunk {idx+1} Source: {c.metadata.get('titulo', 'N/A')}")
+            print(f"  Content: {c.page_content[:150]}...")
+        print("="*50 + "\n")
 
         if not chunks_recuperados:
             print("[ORQUESTADOR RAG] Advertencia: no se recuperaron chunks. Verificá la base ChromaDB.")

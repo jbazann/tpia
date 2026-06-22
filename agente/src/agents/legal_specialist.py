@@ -58,7 +58,19 @@ Contenido textual del material promocional:
 Redactá un informe técnico detallando las concordancias detectadas o listando taxativamente cada infracción normativa encontrada con respecto a la normativa y a la regla específica provista.
 Considerá tanto el texto como las imágenes en tu análisis."""
 
+        print("\n" + "="*50)
+        print("[LLM_CALL] ChatGroq - Especialista Legal")
+        print(f"Model: {self.llm.model_name}")
+        print("System Prompt:\n" + system_prompt)
+        print("User Prompt:\n" + user_prompt)
+        print("="*50 + "\n")
+
         resp = self.llm.invoke([SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)])
+
+        print("\n" + "="*50)
+        print("[LLM_RESPONSE] ChatGroq - Especialista Legal")
+        print("Content:\n" + resp.content)
+        print("="*50 + "\n")
 
         print("[ESPECIALISTA LEGAL] Informe normativo consolidado.")
         return {"reporte_especialista": resp.content}

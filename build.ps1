@@ -48,7 +48,7 @@ function Test-PythonInstalled {
     }
     try {
         $version = & python --version 2>&1
-        Write-Success "✓ Python found: $version"
+        Write-Success "[OK] Python found: $version"
         return $true
     } catch {
         Write-Fail "Python is not usable: $_"
@@ -65,7 +65,7 @@ function Test-GoInstalled {
     }
     try {
         $version = & go version 2>&1
-        Write-Success "✓ Go found: $version"
+        Write-Success "[OK] Go found: $version"
         return $true
     } catch {
         Write-Fail "Go is not usable: $_"
@@ -77,13 +77,13 @@ function Test-GoInstalled {
 function Install-PyInstaller {
     Write-Info "Installing PyInstaller..."
     python -m pip install pyinstaller --quiet
-    Write-Success "✓ PyInstaller installed"
+    Write-Success "[OK] PyInstaller installed"
 }
 
 # Build the Python agent
 function Build-Agent {
     if ($SkipAgentBuild) {
-        Write-Info "⊘ Skipping agent build (--SkipAgentBuild flag set)"
+        Write-Info "[-] Skipping agent build (--SkipAgentBuild flag set)"
         return $true
     }
 
@@ -91,7 +91,7 @@ function Build-Agent {
     
     # Check if PyInstaller is installed
     try {
-        pyinstaller --version | Out-Null
+        python -m PyInstaller --version | Out-Null
     } catch {
         Install-PyInstaller
     }
@@ -130,7 +130,7 @@ function Build-Agent {
 
     # Run PyInstaller
     try {
-        pyinstaller --onefile --add-data "$addData" --distpath dist --workpath build --clean main.py --noconfirm
+        python -m PyInstaller --onefile --name "agente" --add-data "$addData" --distpath dist --workpath build --clean main.py --noconfirm
     } catch {
         Write-Fail "PyInstaller failed: $_"
         Set-Location $ScriptDir
@@ -140,10 +140,10 @@ function Build-Agent {
     Set-Location $ScriptDir
 
     # Expected output location
-    $expected = Join-Path (Join-Path $AgenteDir 'dist') 'main.exe'
+    $expected = Join-Path (Join-Path $AgenteDir 'dist') 'agente.exe'
 
     if (Test-Path $expected) {
-        Write-Success "✓ Agent built successfully: $expected"
+        Write-Success "[OK] Agent built successfully: $expected"
         return $true
     } else {
         Write-Fail "Agent build failed - expected executable not found at $expected"
@@ -154,7 +154,7 @@ function Build-Agent {
 # Build the Go dashboard
 function Build-Dashboard {
     if ($SkipDashboardBuild) {
-        Write-Info "⊘ Skipping dashboard build (--SkipDashboardBuild flag set)"
+        Write-Info "[-] Skipping dashboard build (--SkipDashboardBuild flag set)"
         return $true
     }
 
@@ -183,7 +183,7 @@ function Build-Dashboard {
     $dashboardExe = Join-Path $DashboardDir "build/bin" $exeName
 
     if (Test-Path $dashboardExe) {
-        Write-Success "✓ Dashboard built successfully: $dashboardExe"
+        Write-Success "[OK] Dashboard built successfully: $dashboardExe"
         return $true
     } else {
         Write-Fail "Dashboard build failed - executable not found at $dashboardExe"
@@ -195,8 +195,8 @@ function Build-Dashboard {
 function Copy-AgentToDashboard {
     Write-Info "Copying agent executable to dashboard..."
 
-    # Strictly require agente/dist/main.exe
-    $agentExe = Join-Path (Join-Path $AgenteDir 'dist') 'main.exe'
+    # Strictly require agente/dist/agente.exe
+    $agentExe = Join-Path (Join-Path $AgenteDir 'dist') 'agente.exe'
     $dashboardDir = Join-Path $ScriptDir "dashboard"
 
     if (Test-Path $agentExe) {
@@ -206,8 +206,8 @@ function Copy-AgentToDashboard {
             New-Item -ItemType Directory -Path $resourcesDir -Force | Out-Null
         }
 
-        Copy-Item -Path $agentExe -Destination (Join-Path $resourcesDir "main.exe") -Force
-        Write-Success "✓ Agent executable copied to dashboard"
+        Copy-Item -Path $agentExe -Destination (Join-Path $resourcesDir "agente.exe") -Force
+        Write-Success "[OK] Agent executable copied to dashboard"
         return $true
     } else {
         Write-Fail "Agent executable not found at $agentExe"
@@ -231,15 +231,15 @@ function Create-Distribution {
 
     if (Test-Path $dashboardExe) {
         Copy-Item -Path $dashboardExe -Destination $dashboardOutput -Force
-        Write-Success "✓ Dashboard executable copied to dist/"
+        Write-Success "[OK] Dashboard executable copied to dist/"
     }
 
-    # Strictly require agente/dist/main.exe
-    $agentExe = Join-Path (Join-Path $AgenteDir 'dist') 'main.exe'
+    # Strictly require agente/dist/agente.exe
+    $agentExe = Join-Path (Join-Path $AgenteDir 'dist') 'agente.exe'
     if (Test-Path $agentExe) {
-        $agentOutput = Join-Path $OutputDir "main.exe"
+        $agentOutput = Join-Path $OutputDir "agente.exe"
         Copy-Item -Path $agentExe -Destination $agentOutput -Force
-        Write-Success "✓ Agent executable copied to dist/"
+        Write-Success "[OK] Agent executable copied to dist/"
     } else {
         Write-Fail "Agent executable not found at $agentExe - cannot include in distribution"
     }
@@ -248,10 +248,10 @@ function Create-Distribution {
     $configFile = Join-Path $AgenteDir "config.yaml"
     if (Test-Path $configFile) {
         Copy-Item -Path $configFile -Destination (Join-Path $OutputDir "config.yaml") -Force
-        Write-Success "✓ Config file copied to dist/"
+        Write-Success "[OK] Config file copied to dist/"
     }
-
-    Write-Success "✓ Distribution folder created: $OutputDir"
+    
+    Write-Success "[OK] Distribution folder created: $OutputDir"
 }
 
 # Main build flow

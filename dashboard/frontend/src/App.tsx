@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './App.css';
-import { SaveTemporaryFile, ExecuteAgent, CleanupTemporaryFiles } from "../wailsjs/go/main/App.js";
+import { SaveTemporaryFile, ExecuteAgent, CleanupTemporaryFiles, GetRules, AddRule, DeleteRule, ToggleRule, GetAgentLogs } from "../wailsjs/go/main/App.js";
+import utnLogo from './assets/images/logo-utn.png';
+import loteriaLogo from './assets/images/logo-loteria.webp';
 
 interface UploadedFile {
     id: string;
@@ -11,11 +13,66 @@ interface UploadedFile {
     error?: string;
 }
 
+interface RuleItem {
+    id: number;
+    rule_name: string;
+    priority: number;
+    target_agent: string;
+    action_type: string;
+    payload: string;
+    is_active: boolean;
+}
+
 function App() {
     const [activeMenu, setActiveMenu] = useState('reglas');
     const [dragActive, setDragActive] = useState(false);
     const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
+    const [expandedFileId, setExpandedFileId] = useState<string | null>(null);
+
+    const [rules, setRules] = useState<RuleItem[]>([]);
+    const [rulesLoading, setRulesLoading] = useState(false);
+    const [rulesError, setRulesError] = useState<string | null>(null);
+
+    const [newRuleName, setNewRuleName] = useState('');
+    const [newTargetAgent, setNewTargetAgent] = useState('');
+    const [newPayload, setNewPayload] = useState('');
+    const [newPriority, setNewPriority] = useState(10);
+
+    const [agentLogs, setAgentLogs] = useState<string>("Cargando logs...");
+    const logConsoleRef = useRef<HTMLDivElement>(null);
+
+    const refreshLogs = async () => {
+        try {
+            const logs = await GetAgentLogs();
+            setAgentLogs(logs);
+            if (logConsoleRef.current) {
+                logConsoleRef.current.scrollTop = logConsoleRef.current.scrollHeight;
+            }
+        } catch (err) {
+            console.error("Error al cargar logs:", err);
+            setAgentLogs("Error de conexión al leer los logs del agente.");
+        }
+    };
+
+    // Cargar reglas desde la BD al montar la sección de reglas
+    const loadRules = async () => {
+        setRulesLoading(true);
+        setRulesError(null);
+        try {
+            const data = await GetRules();
+            setRules(data || []);
+        } catch (err: any) {
+            setRulesError(err?.message || 'Error al cargar reglas. Aseguráte de haber ejecutado el agente al menos una vez.');
+        } finally {
+            setRulesLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeMenu === 'reglas') loadRules();
+        if (activeMenu === 'observabilidad') refreshLogs();
+    }, [activeMenu]);
 
     // Handle drag events for file upload
     const handleDrag = (e: React.DragEvent) => {
@@ -107,6 +164,11 @@ function App() {
                         : f
                 )
             );
+            
+            if (result.success) {
+                // Auto-expand output on success
+                setExpandedFileId(fileId);
+            }
         } catch (error) {
             console.error('Error executing agent:', error);
             setUploadedFiles(prev =>
@@ -127,42 +189,90 @@ function App() {
 
     // Delete a file from the list
     const deleteFile = (fileId: string) => {
+        if (expandedFileId === fileId) {
+            setExpandedFileId(null);
+        }
         setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
     };
 
-    // Get status badge color
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'pendiente':
-                return '#FFB84D';
-            case 'en proceso':
-                return '#4CA6C6';
-            case 'procesado':
-                return '#66BB6A';
-            case 'error':
-                return '#EF5350';
-            default:
-                return '#999';
+    // Add a new rule to the DB
+    const handleAddRule = async () => {
+        if (!newRuleName.trim()) return;
+        try {
+            // Se inyectan de forma transparente los campos técnicos requeridos por el backend SQLite
+            const targetAgent = "legal_evaluation_flow";
+            const priority = 10;
+            const actionType = "invoke_subagent";
+            await AddRule(newRuleName.trim(), targetAgent, actionType, newPayload.trim(), priority);
+            setNewRuleName('');
+            setNewPayload('');
+            await loadRules();
+        } catch (err: any) {
+            alert('Error al agregar regla: ' + (err?.message || err));
         }
+    };
+
+    // Delete a rule from the DB
+    const handleDeleteRule = async (ruleId: number) => {
+        try {
+            await DeleteRule(ruleId);
+            await loadRules();
+        } catch (err: any) {
+            alert('Error al eliminar regla: ' + (err?.message || err));
+        }
+    };
+
+    // Toggle active state
+    const handleToggleRule = async (ruleId: number, currentActive: boolean) => {
+        try {
+            await ToggleRule(ruleId, !currentActive);
+            await loadRules();
+        } catch (err: any) {
+            alert('Error al actualizar regla: ' + (err?.message || err));
+        }
+    };
+
+    // Parse verdict from output log
+    const parseVerdict = (output?: string) => {
+        if (!output) return null;
+        if (output.includes('Veredicto: APROBAR')) return 'APROBAR';
+        if (output.includes('Veredicto: RECHAZAR')) return 'RECHAZAR';
+        if (output.includes('Veredicto: REVISAR')) return 'REVISAR';
+        if (output.toLowerCase().includes('veredicto: aprobar')) return 'APROBAR';
+        if (output.toLowerCase().includes('veredicto: rechazar')) return 'RECHAZAR';
+        if (output.toLowerCase().includes('veredicto: revisar')) return 'REVISAR';
+        return null;
+    };
+
+    // Parse justification from output log
+    const parseJustification = (output?: string) => {
+        if (!output) return null;
+        const match = output.match(/Justificación:\s*([\s\S]*?)(?====+|$)/i);
+        if (match && match[1]) {
+            return match[1].trim();
+        }
+        return null;
     };
 
     return (
         <div className="app-container">
             {/* Topbar */}
             <nav className="topbar">
-                <div className="topbar-brand">Dashboard TPIA</div>
+                <div className="topbar-brand">
+                    <span>Dashboard TPIA</span>
+                </div>
                 <div className="topbar-menu">
                     <button
                         className={`menu-item ${activeMenu === 'reglas' ? 'active' : ''}`}
                         onClick={() => setActiveMenu('reglas')}
                     >
-                        Reglas
+                        Reglas de Auditoría
                     </button>
                     <button
                         className={`menu-item ${activeMenu === 'agente' ? 'active' : ''}`}
                         onClick={() => setActiveMenu('agente')}
                     >
-                        Agente
+                        Procesamiento
                     </button>
                     <button
                         className={`menu-item ${activeMenu === 'observabilidad' ? 'active' : ''}`}
@@ -178,73 +288,85 @@ function App() {
                 {/* Reglas Section */}
                 {activeMenu === 'reglas' && (
                     <section className="section">
-                        <h2>Reglas</h2>
+                        <h2>Reglas de Control de Lotería de Santa Fe</h2>
 
                         {/* Form */}
                         <div className="rules-form-container">
-                            <div className="form-group">
+                            <div className="form-group" style={{ flex: 1.2 }}>
+                                <label className="form-label">Canal / Medio</label>
                                 <input
                                     type="text"
-                                    placeholder="Campo 1"
+                                    placeholder="ej: Publicidad Radial"
                                     className="form-input"
+                                    value={newRuleName}
+                                    onChange={e => setNewRuleName(e.target.value)}
                                 />
                             </div>
-                            <div className="form-group">
+                            <div className="form-group" style={{ flex: 2.8 }}>
+                                <label className="form-label">Requisitos / Especificaciones de la Resolución</label>
                                 <input
                                     type="text"
-                                    placeholder="Campo 2"
+                                    placeholder="ej: Zócalo con advertencia y altura de al menos 10%"
                                     className="form-input"
+                                    value={newPayload}
+                                    onChange={e => setNewPayload(e.target.value)}
                                 />
                             </div>
-                            <div className="form-group">
-                                <input
-                                    type="text"
-                                    placeholder="Campo 3"
-                                    className="form-input"
-                                />
-                            </div>
-                            <button className="btn-add">+</button>
+                            <button className="btn-add" onClick={handleAddRule}>Agregar Regla</button>
                         </div>
+
+                        {/* Status messages */}
+                        {rulesError && (
+                            <div style={{ color: 'var(--red-700)', fontSize: '0.82rem', marginBottom: '1rem', padding: '0.75rem', background: 'var(--red-100)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--red-200)' }}>
+                                {rulesError}
+                            </div>
+                        )}
 
                         {/* Table */}
                         <div className="rules-table-container">
                             <table className="rules-table">
                                 <thead>
                                     <tr>
-                                        <th>Campo 1</th>
-                                        <th>Campo 2</th>
-                                        <th>Campo 3</th>
-                                        <th>Acciones</th>
+                                        <th style={{ width: '8%' }}>ID</th>
+                                        <th style={{ width: '32%' }}>Canal / Medio</th>
+                                        <th style={{ width: '45%' }}>Requisitos y Parámetros de Control</th>
+                                        <th style={{ width: '15%', textAlign: 'center' }}>Estado / Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr>
-                                        <td className="placeholder">Placeholder</td>
-                                        <td className="placeholder">Placeholder</td>
-                                        <td className="placeholder">Placeholder</td>
-                                        <td>
-                                            <button className="btn-small">Editar</button>
-                                            <button className="btn-small btn-danger">Eliminar</button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td className="placeholder">Placeholder</td>
-                                        <td className="placeholder">Placeholder</td>
-                                        <td className="placeholder">Placeholder</td>
-                                        <td>
-                                            <button className="btn-small">Editar</button>
-                                            <button className="btn-small btn-danger">Eliminar</button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td className="placeholder">Placeholder</td>
-                                        <td className="placeholder">Placeholder</td>
-                                        <td className="placeholder">Placeholder</td>
-                                        <td>
-                                            <button className="btn-small">Editar</button>
-                                            <button className="btn-small btn-danger">Eliminar</button>
-                                        </td>
-                                    </tr>
+                                    {rulesLoading && (
+                                        <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--gray-400)', padding: '2rem' }}>Cargando reglas...</td></tr>
+                                    )}
+                                    {!rulesLoading && rules.map(rule => (
+                                        <tr key={rule.id}>
+                                            <td style={{ color: 'var(--gray-400)', fontSize: '0.78rem' }}>#{rule.id}</td>
+                                            <td style={{ fontWeight: 600 }}>{rule.rule_name}</td>
+                                            <td style={{ color: 'var(--gray-600)', fontSize: '0.82rem' }}>{rule.payload || <span className="placeholder">—</span>}</td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                <button
+                                                    className="btn-small"
+                                                    style={{ marginRight: '0.3rem', background: rule.is_active ? 'var(--green-100)' : 'var(--gray-100)', color: rule.is_active ? 'var(--green-700)' : 'var(--gray-500)' }}
+                                                    onClick={() => handleToggleRule(rule.id, rule.is_active)}
+                                                    title={rule.is_active ? 'Desactivar' : 'Activar'}
+                                                >
+                                                    {rule.is_active ? 'Activa' : 'Inactiva'}
+                                                </button>
+                                                <button
+                                                    className="btn-small btn-danger"
+                                                    onClick={() => handleDeleteRule(rule.id)}
+                                                >
+                                                    Eliminar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {rules.length === 0 && (
+                                        <tr>
+                                            <td colSpan={4} className="placeholder" style={{ textAlign: 'center', padding: '2rem' }}>
+                                                No hay reglas de auditoría cargadas en la sesión.
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -254,17 +376,17 @@ function App() {
                 {/* Agente Section */}
                 {activeMenu === 'agente' && (
                     <section className="section">
-                        <h2>Agente</h2>
+                        <h2>Procesamiento Inteligente Multi-Agente</h2>
 
                         {/* Status Labels */}
                         <div className="status-container">
                             <div className="status-item">
-                                <label className="status-label">Estado:</label>
-                                <div className="status-value placeholder">Disponible</div>
+                                <label className="status-label">Estado del Servicio:</label>
+                                <div className="status-value">Disponible</div>
                             </div>
                             <div className="status-item">
-                                <label className="status-label">Trabajos en cola:</label>
-                                <div className="status-value placeholder">{uploadedFiles.filter(f => f.status === 'pendiente').length}</div>
+                                <label className="status-label">Archivos Pendientes:</label>
+                                <div className="status-value">{uploadedFiles.filter(f => f.status === 'pendiente').length}</div>
                             </div>
                         </div>
 
@@ -277,63 +399,124 @@ function App() {
                             onDrop={handleDrop}
                         >
                             <div className="drag-drop-content">
-                                <div className="drag-drop-icon">📁</div>
-                                <p>Arrastra archivos aquí</p>
-                                <p className="drag-drop-hint">o usa el botón abajo</p>
+                                <div className="drag-drop-icon">
+                                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                        <polyline points="14 2 14 8 20 8"/>
+                                        <line x1="12" y1="18" x2="12" y2="12"/>
+                                        <line x1="9" y1="15" x2="15" y2="15"/>
+                                    </svg>
+                                </div>
+                                <p>Arrastre el documento PDF aquí para iniciar el análisis</p>
+                                <p className="drag-drop-hint">Compatible con documentos PDF de material publicitario</p>
                             </div>
                         </div>
 
                         {/* File Selection Button */}
-                        <button className="btn-file-select" onClick={handleFileSelect}>
-                            Seleccionar archivo
+                        <button className="btn-file-select" onClick={handleFileSelect} style={{ marginBottom: '2rem' }}>
+                            Seleccionar archivo PDF
                         </button>
 
                         {/* Files Table */}
                         {uploadedFiles.length > 0 && (
                             <div className="files-table-container">
-                                <h3>Archivos Cargados</h3>
+                                <h3>Cola de Procesamiento de Auditoría</h3>
                                 <table className="files-table">
                                     <thead>
                                         <tr>
-                                            <th>Nombre</th>
-                                            <th>Estado</th>
-                                            <th>Acciones</th>
+                                            <th>Nombre del Archivo</th>
+                                            <th style={{ width: '150px' }}>Estado</th>
+                                            <th style={{ width: '250px', textAlign: 'right' }}>Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {uploadedFiles.map(file => (
-                                            <tr key={file.id}>
-                                                <td>{file.fileName}</td>
-                                                <td>
-                                                    <span
-                                                        className="status-badge"
-                                                        style={{ backgroundColor: getStatusColor(file.status) }}
-                                                    >
-                                                        {file.status}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    {file.status === 'pendiente' && (
-                                                        <button
-                                                            className="btn-small"
-                                                            onClick={() => executeAgent(file.id)}
-                                                            disabled={isProcessing === file.id}
-                                                        >
-                                                            {isProcessing === file.id ? 'Procesando...' : 'Iniciar'}
-                                                        </button>
+                                        {uploadedFiles.map(file => {
+                                            const isExpanded = expandedFileId === file.id;
+                                            const verdict = parseVerdict(file.output);
+                                            const justification = parseJustification(file.output);
+                                            
+                                            return (
+                                                <>
+                                                    <tr key={file.id} className="row-hover">
+                                                        <td style={{ fontWeight: 500 }}>{file.fileName}</td>
+                                                        <td>
+                                                            <span className={`status-badge ${file.status.replace(' ', '')}`}>
+                                                                {file.status}
+                                                            </span>
+                                                        </td>
+                                                        <td style={{ textAlign: 'right' }}>
+                                                            {file.status === 'pendiente' && (
+                                                                <button
+                                                                    className="btn-small"
+                                                                    onClick={() => executeAgent(file.id)}
+                                                                    disabled={isProcessing !== null}
+                                                                >
+                                                                    {isProcessing === file.id ? 'Analizando...' : 'Auditar con IA'}
+                                                                </button>
+                                                            )}
+                                                            {file.status === 'procesado' && (
+                                                                <button
+                                                                    className="btn-small"
+                                                                    style={{ backgroundColor: isExpanded ? '#f1f3f5' : '#e7f5ff', color: '#004b87' }}
+                                                                    onClick={() => setExpandedFileId(isExpanded ? null : file.id)}
+                                                                >
+                                                                    {isExpanded ? 'Ocultar Resumen' : 'Ver Resultados'}
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                className="btn-small btn-danger"
+                                                                onClick={() => deleteFile(file.id)}
+                                                                disabled={isProcessing === file.id}
+                                                            >
+                                                                Eliminar
+                                                            </button>
+                                                            {file.error && (
+                                                                <div className="error-message">{file.error}</div>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                    
+                                                    {/* Expanded details row */}
+                                                    {file.status === 'procesado' && isExpanded && (
+                                                        <tr key={`${file.id}-expanded`}>
+                                                            <td colSpan={3} className="output-row-td">
+                                                                <div className="output-expand-container">
+                                                                    <div className="output-header">
+                                                                        <span className="output-title">Dictamen del Agente Multi-Agente RAG</span>
+                                                                    </div>
+                                                                    
+                                                                    {/* Summary Cards */}
+                                                                    <div className="output-results-summary">
+                                                                        <div className="summary-card" style={{ borderLeft: '4px solid ' + (verdict === 'APROBAR' ? '#2f9e44' : verdict === 'RECHAZAR' ? '#e03131' : '#f59f00') }}>
+                                                                            <div className="summary-card-title">Veredicto Legal</div>
+                                                                            <div className="summary-card-value">
+                                                                                <span className={`verdict-badge ${verdict?.toLowerCase() || 'revisar'}`}>
+                                                                                    {verdict || 'REVISAR'}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                        
+                                                                        <div className="summary-card" style={{ flex: 3 }}>
+                                                                            <div className="summary-card-title">Justificación de la Resolución</div>
+                                                                            <div className="summary-card-value" style={{ fontSize: '0.95rem', fontWeight: 500, color: '#343a40' }}>
+                                                                                {justification || 'Ver detalles en la traza completa de ejecución abajo.'}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    
+                                                                    <div className="output-header" style={{ marginTop: '1.25rem' }}>
+                                                                        <span className="output-title" style={{ fontSize: '0.85rem', color: '#6c757d' }}>Log Técnico de Auditoría (Traza del Grafo)</span>
+                                                                    </div>
+                                                                    <pre className="output-pre">
+                                                                        {file.output}
+                                                                    </pre>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
                                                     )}
-                                                    <button
-                                                        className="btn-small btn-danger"
-                                                        onClick={() => deleteFile(file.id)}
-                                                    >
-                                                        Eliminar
-                                                    </button>
-                                                    {file.error && (
-                                                        <div className="error-message">{file.error}</div>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                </>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -344,13 +527,55 @@ function App() {
                 {/* Observabilidad Section */}
                 {activeMenu === 'observabilidad' && (
                     <section className="section">
-                        <h2>Observabilidad</h2>
-                        <div className="empty-state">
-                            <p>Esta sección está vacía por el momento.</p>
+                        <h2>Observabilidad y Trazabilidad del Sistema</h2>
+                        <div className="observability-container">
+                            <div className="pipeline-visual">
+                                <div className="pipeline-node active">
+                                    <div className="node-icon node-icon--pdf">PDF</div>
+                                    <div className="node-title">Entrada</div>
+                                    <div className="node-desc">Carga del documento de campaña</div>
+                                </div>
+                                <div className="pipeline-arrow">›</div>
+                                <div className="pipeline-node active">
+                                    <div className="node-icon node-icon--rag">RAG</div>
+                                    <div className="node-title">Orquestador RAG</div>
+                                    <div className="node-desc">Extracción semántica y contexto vectorial</div>
+                                </div>
+                                <div className="pipeline-arrow">›</div>
+                                <div className="pipeline-node active">
+                                    <div className="node-icon node-icon--legal">JUR</div>
+                                    <div className="node-title">Especialista Legal</div>
+                                    <div className="node-desc">Validación normativa Lotería SF</div>
+                                </div>
+                                <div className="pipeline-arrow">›</div>
+                                <div className="pipeline-node active">
+                                    <div className="node-icon node-icon--verdict">VRD</div>
+                                    <div className="node-title">Emisor de Veredicto</div>
+                                    <div className="node-desc">Dictamen final consolidado</div>
+                                </div>
+                            </div>
+                            
+                            <div className="logs-summary-card">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                    <h3 style={{ marginBottom: 0 }}>Registros del Motor de Inferencia (LangGraph)</h3>
+                                    <button className="btn-small" onClick={refreshLogs} style={{ background: 'var(--blue-100)', color: 'var(--blue-700)' }}>
+                                        Actualizar Logs
+                                    </button>
+                                </div>
+                                <div className="log-console" ref={logConsoleRef} style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', padding: '1rem', background: '#1e1e1e', color: '#d4d4d4', borderRadius: '4px', height: '400px', overflowY: 'auto' }}>
+                                    {agentLogs}
+                                </div>
+                            </div>
                         </div>
                     </section>
                 )}
             </main>
+
+            {/* Institutional Footer */}
+            <footer className="app-footer">
+                <img src={loteriaLogo} alt="Lotería de Santa Fe" className="footer-logo" />
+                <img src={utnLogo} alt="UTN Facultad Regional Santa Fe" className="footer-logo" />
+            </footer>
         </div>
     );
 }

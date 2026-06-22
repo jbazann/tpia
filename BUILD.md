@@ -66,14 +66,9 @@ pip install -r requirements.txt
 pip install pyinstaller
 
 # Empaquetar con PyInstaller
-pyinstaller --name agente ^
-    --onefile ^
-    --hidden-import=PyPDF2 ^
-    --hidden-import=pyyaml ^
-    --hidden-import=python-dotenv ^
-    --hidden-import=openai ^
-    --hidden-import=tabulate ^
-    --add-data "config.yaml:." ^
+pyinstaller --name agente \
+    --onefile \
+    --add-data "config.yaml;." \
     main.py
 ```
 
@@ -110,6 +105,15 @@ dist/
 ├── dashboard.exe          # Aplicación principal
 ├── agente.exe            # Agente Python empaquetado
 └── config.yaml           # Configuración del agente
+```
+
+## Pruebas y Validación (Tests)
+
+El agente cuenta con una suite de tests unitarios que validan el extractor PDF, la detección automática de tipos de medio y el motor de reglas (SQLite transaccional):
+
+```bash
+cd agente
+python -m unittest tests/test_agent.py
 ```
 
 ## Ejecutar

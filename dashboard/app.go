@@ -2,16 +2,20 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+
+	_ "modernc.org/sqlite"
 )
 
 // App struct
 type App struct {
-	ctx context.Context
+	ctx    context.Context
+	dbPath string
 }
 
 // FileInfo holds information about a file in the temporary directory
@@ -21,16 +25,211 @@ type FileInfo struct {
 	Status   string `json:"status"`
 }
 
+// Rule representa una regla de auditoría en la base de datos
+type Rule struct {
+	ID          int    `json:"id"`
+	RuleName    string `json:"rule_name"`
+	Priority    int    `json:"priority"`
+	TargetAgent string `json:"target_agent"`
+	ActionType  string `json:"action_type"`
+	Payload     string `json:"payload"`
+	IsActive    bool   `json:"is_active"`
+}
+
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{}
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
+// startup is called when the app starts
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.dbPath = a.findRulesDB()
 }
+
+// findRulesDB intenta localizar la base de datos rules.db del agente
+func (a *App) findRulesDB() string {
+	execPath, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	dashboardDir := filepath.Dir(execPath)
+
+	candidates := []string{
+		filepath.Join(dashboardDir, "agente", "data", "rules.db"),
+		filepath.Join(dashboardDir, "..", "agente", "data", "rules.db"),
+		filepath.Join(dashboardDir, "..", "..", "agente", "data", "rules.db"),
+		// Modo desarrollo: desde dashboard/
+		filepath.Join("..", "agente", "data", "rules.db"),
+		filepath.Join("..", "..", "agente", "data", "rules.db"),
+	}
+
+	for _, p := range candidates {
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			continue
+		}
+		if _, err := os.Stat(abs); err == nil {
+			return abs
+		}
+	}
+	return ""
+}
+
+// openDB abre la conexión SQLite y la cierra al salir
+func (a *App) openDB() (*sql.DB, error) {
+	if a.dbPath == "" {
+		return nil, fmt.Errorf("rules.db no encontrada. Ejecute el agente al menos una vez para inicializarla")
+	}
+	return sql.Open("sqlite", a.dbPath)
+}
+
+// ─────────────────────────────────────────────────────────
+// CRUD de Reglas — expuestos como bindings a React
+// ─────────────────────────────────────────────────────────
+
+// GetRules devuelve todas las reglas de la base de datos
+func (a *App) GetRules() ([]Rule, error) {
+	db, err := a.openDB()
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	rows, err := db.Query(`
+		SELECT id, rule_name, priority, target_agent, action_type,
+		       COALESCE(payload, ''), is_active
+		FROM rules
+		ORDER BY priority ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("error al consultar reglas: %w", err)
+	}
+	defer rows.Close()
+
+	var rules []Rule
+	for rows.Next() {
+		var r Rule
+		var isActive int
+		if err := rows.Scan(&r.ID, &r.RuleName, &r.Priority, &r.TargetAgent,
+			&r.ActionType, &r.Payload, &isActive); err != nil {
+			return nil, err
+		}
+		r.IsActive = isActive == 1
+		rules = append(rules, r)
+	}
+	return rules, nil
+}
+
+// AddRule agrega una nueva regla a la base de datos
+func (a *App) AddRule(ruleName, targetAgent, actionType, payload string, priority int) (int64, error) {
+	if ruleName == "" || targetAgent == "" {
+		return 0, fmt.Errorf("rule_name y target_agent son obligatorios")
+	}
+	db, err := a.openDB()
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+
+	result, err := db.Exec(`
+		INSERT INTO rules (rule_name, priority, target_agent, action_type, payload, is_active)
+		VALUES (?, ?, ?, ?, ?, 1)
+	`, ruleName, priority, targetAgent, actionType, payload)
+	if err != nil {
+		return 0, fmt.Errorf("error al insertar regla: %w", err)
+	}
+	return result.LastInsertId()
+}
+
+// UpdateRule actualiza una regla existente por ID
+func (a *App) UpdateRule(id int, ruleName, targetAgent, actionType, payload string, priority int, isActive bool) error {
+	db, err := a.openDB()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	activeInt := 0
+	if isActive {
+		activeInt = 1
+	}
+
+	_, err = db.Exec(`
+		UPDATE rules
+		SET rule_name=?, priority=?, target_agent=?, action_type=?, payload=?, is_active=?
+		WHERE id=?
+	`, ruleName, priority, targetAgent, actionType, payload, activeInt, id)
+	if err != nil {
+		return fmt.Errorf("error al actualizar regla %d: %w", id, err)
+	}
+	return nil
+}
+
+// DeleteRule elimina una regla por ID
+func (a *App) DeleteRule(id int) error {
+	db, err := a.openDB()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	_, err = db.Exec(`DELETE FROM rules WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("error al eliminar regla %d: %w", id, err)
+	}
+	return nil
+}
+
+// ToggleRule activa o desactiva una regla sin eliminarla
+func (a *App) ToggleRule(id int, isActive bool) error {
+	db, err := a.openDB()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	activeInt := 0
+	if isActive {
+		activeInt = 1
+	}
+	_, err = db.Exec(`UPDATE rules SET is_active=? WHERE id=?`, activeInt, id)
+	return err
+}
+
+// GetAgentLogs reads the observability log file generated by the Python agent
+func (a *App) GetAgentLogs() (string, error) {
+	execPath, err := os.Executable()
+	if err != nil {
+		return "Error interno al buscar logs.", err
+	}
+	dashboardDir := filepath.Dir(execPath)
+	
+	candidates := []string{
+		filepath.Join(dashboardDir, "agente", "data", "logs", "agent_observability.log"),
+		filepath.Join(dashboardDir, "..", "agente", "data", "logs", "agent_observability.log"),
+		filepath.Join(dashboardDir, "..", "..", "agente", "data", "logs", "agent_observability.log"),
+		filepath.Join("..", "agente", "data", "logs", "agent_observability.log"),
+	}
+
+	for _, p := range candidates {
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			continue
+		}
+		if _, err := os.Stat(abs); err == nil {
+			content, err := os.ReadFile(abs)
+			if err == nil {
+				return string(content), nil
+			}
+		}
+	}
+	return "No hay logs disponibles aún. Ejecute el agente procesando un archivo al menos una vez para generarlos.", nil
+}
+
+// ─────────────────────────────────────────────────────────
+// Funciones existentes de manejo de archivos y agente
+// ─────────────────────────────────────────────────────────
 
 // Greet returns a greeting for the given name
 func (a *App) Greet(name string) string {
@@ -39,16 +238,12 @@ func (a *App) Greet(name string) string {
 
 // SaveTemporaryFile saves a file to the temporary directory and returns its path
 func (a *App) SaveTemporaryFile(fileName string, fileData []byte) (map[string]interface{}, error) {
-	// Create temp directory if it doesn't exist
 	tempDir := filepath.Join(os.TempDir(), "tpia-dashboard")
 	if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
 
-	// Create full file path
 	filePath := filepath.Join(tempDir, fileName)
-
-	// Write file
 	if err := os.WriteFile(filePath, fileData, 0644); err != nil {
 		return nil, fmt.Errorf("failed to write file: %w", err)
 	}
@@ -62,8 +257,6 @@ func (a *App) SaveTemporaryFile(fileName string, fileData []byte) (map[string]in
 
 // ExecuteAgent executes the Python agent with the given file path
 func (a *App) ExecuteAgent(filePath string, prompt string) (map[string]interface{}, error) {
-
-	// Find the agent directory
 	agentDir := findAgentDirectory()
 	if agentDir == "" {
 		return map[string]interface{}{
@@ -74,41 +267,31 @@ func (a *App) ExecuteAgent(filePath string, prompt string) (map[string]interface
 		}, nil
 	}
 
-	// Build the command - check if it's an executable or a Python script
 	var cmd *exec.Cmd
-
-	// Check if agentDir is a Python script directory or an executable path
 	if isExecutable(agentDir) {
-		// agentDir is the path to the compiled executable (agente.exe or agente)
 		if prompt != "" {
 			cmd = exec.Command(agentDir, "-f", filePath, "-p", prompt)
 		} else {
 			cmd = exec.Command(agentDir, "-f", filePath)
 		}
-		// Set the working directory to the executable's directory
 		cmd.Dir = filepath.Dir(agentDir)
 	} else {
-		// agentDir is a directory with main.py - use Python interpreter
 		var pythonCmd string
 		if runtime.GOOS == "windows" {
 			pythonCmd = "python"
 		} else {
 			pythonCmd = "python3"
 		}
-
 		if prompt != "" {
 			cmd = exec.Command(pythonCmd, filepath.Join(agentDir, "main.py"), "-f", filePath, "-p", prompt)
 		} else {
 			cmd = exec.Command(pythonCmd, filepath.Join(agentDir, "main.py"), "-f", filePath)
 		}
-		// Set the working directory to the agent directory to ensure config.yaml is found
 		cmd.Dir = agentDir
 	}
 
-	// Capture output
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Command failed, but we return the output anyway so the user can see what went wrong
 		return map[string]interface{}{
 			"success": false,
 			"status":  "error",
@@ -124,100 +307,64 @@ func (a *App) ExecuteAgent(filePath string, prompt string) (map[string]interface
 	}, nil
 }
 
-// isExecutable checks if a path is an executable file
 func isExecutable(path string) bool {
 	fileInfo, err := os.Stat(path)
-	if err != nil {
+	if err != nil || fileInfo.IsDir() {
 		return false
 	}
-
-	// Check if it's a file and has .exe extension (Windows) or is executable (Unix)
-	if fileInfo.IsDir() {
-		return false
-	}
-
 	if runtime.GOOS == "windows" {
 		return filepath.Ext(path) == ".exe"
-	} else {
-		return (fileInfo.Mode() & 0111) != 0
 	}
+	return (fileInfo.Mode() & 0111) != 0
 }
 
-// findAgentDirectory attempts to locate the agent directory or executable
 func findAgentDirectory() string {
-	// Try multiple potential paths for compiled executable first
-
-	// 1. Check for executable in the same directory as the dashboard
 	execPath, err := os.Executable()
 	if err == nil {
 		dashboardDir := filepath.Dir(execPath)
-
-		// Check for agente.exe (Windows) or agente (Unix)
 		exeNames := []string{"agente.exe", "agente"}
 		for _, exeName := range exeNames {
-			potentialPath := filepath.Join(dashboardDir, exeName)
-			if _, err := os.Stat(potentialPath); err == nil {
-				return potentialPath
+			if p := filepath.Join(dashboardDir, exeName); fileExists(p) {
+				return p
 			}
-		}
-
-		// Check in parent directory
-		parentDir := filepath.Dir(dashboardDir)
-		for _, exeName := range exeNames {
-			potentialPath := filepath.Join(parentDir, exeName)
-			if _, err := os.Stat(potentialPath); err == nil {
-				return potentialPath
+			if p := filepath.Join(filepath.Dir(dashboardDir), exeName); fileExists(p) {
+				return p
 			}
 		}
 	}
 
-	// 2. Check for executable in current working directory
 	cwd, err := os.Getwd()
 	if err == nil {
-		exeNames := []string{"agente.exe", "agente"}
-		for _, exeName := range exeNames {
-			potentialPath := filepath.Join(cwd, exeName)
-			if _, err := os.Stat(potentialPath); err == nil {
-				return potentialPath
+		for _, exeName := range []string{"agente.exe", "agente"} {
+			if p := filepath.Join(cwd, exeName); fileExists(p) {
+				return p
 			}
 		}
 	}
 
-	// 3. Check if TPIA_AGENT_PATH environment variable is set (can be executable or directory)
-	if agentPath := os.Getenv("TPIA_AGENT_PATH"); agentPath != "" {
-		if _, err := os.Stat(agentPath); err == nil {
-			return agentPath
-		}
+	if agentPath := os.Getenv("TPIA_AGENT_PATH"); agentPath != "" && fileExists(agentPath) {
+		return agentPath
 	}
 
-	// 4. Fall back to source directory (development)
-	sourceDir := findAgentSourceDirectory()
-	if sourceDir != "" {
-		return sourceDir
-	}
-
-	return ""
+	return findAgentSourceDirectory()
 }
 
-// findAgentSourceDirectory attempts to locate the agent Python source directory
 func findAgentSourceDirectory() string {
-	// Try relative paths from development perspective
-	potentialPaths := []string{
-		"../../agente",
-		"../agente",
-		"./agente",
-		"/opt/tpia/agente", // Unix-like
-		"C:\\tpia\\agente", // Windows
+	candidates := []string{
+		"../../agente", "../agente", "./agente",
+		"/opt/tpia/agente", `C:\tpia\agente`,
 	}
-
-	for _, path := range potentialPaths {
-		mainPy := filepath.Join(path, "main.py")
-		if _, err := os.Stat(mainPy); err == nil {
+	for _, path := range candidates {
+		if fileExists(filepath.Join(path, "main.py")) {
 			return path
 		}
 	}
-
 	return ""
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // CleanupTemporaryFiles removes all files from the temporary directory

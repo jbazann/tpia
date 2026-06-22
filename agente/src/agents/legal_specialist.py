@@ -2,11 +2,13 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 from src.agents.state import EstadoEvaluacion
 
+
 class LegalSpecialistAgent:
     """
-    Sub-Agente Orquestado: Procesa el lenguaje natural contrastando 
-    el RAG contra el contenido de la pieza publicitaria.
+    Sub-agente legal: contrasta el contenido textual Y el análisis visual
+    del material publicitario contra la normativa recuperada por el RAG.
     """
+
     def __init__(self, config: dict):
         llm_config = config.get("llm", {})
         self.llm = ChatGroq(
@@ -15,26 +17,48 @@ class LegalSpecialistAgent:
         )
 
     def __call__(self, state: EstadoEvaluacion) -> dict:
-        print(f"[ESPECIALISTA] Evaluando compatibilidad normativa mediante PLN cognitivo...")
+        print("[ESPECIALISTA LEGAL] Evaluando compatibilidad normativa...")
 
-        system_prompt = """
-        Sos un inspector técnico y auditor legal de la Lotería de Santa Fe. Tu único rol es contrastar el contenido de la publicidad contra el marco regulatorio provisto.
-        Analizá detalladamente si la pieza publicitaria cumple o si infringe la norma.
+        analisis_visual = state.get("analisis_visual", "").strip()
+        tiene_analisis_visual = bool(analisis_visual and "no disponible" not in analisis_visual.lower())
 
-        REGLA DE ORO: Sé riguroso y formal. No inventes regulaciones. Basate ESTRICTAMENTE en las cláusulas provistas en el contexto.
-        """
+        system_prompt = """\
+Sos un inspector técnico y auditor legal de la Lotería de Santa Fe.
+Tu rol es contrastar el contenido de la publicidad (texto e imágenes) contra el marco regulatorio provisto.
+Analizá si la pieza publicitaria cumple o infringe la normativa.
+
+REGLA DE ORO: Sé riguroso y formal. No inventes regulaciones. Basate ESTRICTAMENTE en las cláusulas provistas."""
+
+        # Construir el prompt de usuario con o sin análisis visual
+        seccion_visual = ""
+        if tiene_analisis_visual:
+            seccion_visual = f"""
+Análisis visual de imágenes embebidas en el PDF (OCR + modelo de visión):
+{analisis_visual}
+"""
+
+        regla_nombre = state.get("regla_nombre", "").strip()
+        regla_requisito = state.get("regla_requisito", "").strip()
+
+        seccion_regla = ""
+        if regla_nombre and regla_requisito:
+            seccion_regla = f"""
+Regla específica a auditar:
+- Canal/Nombre de Control: {regla_nombre}
+- Requisitos a verificar: {regla_requisito}
+"""
 
         user_prompt = f"""
-        Normativa aplicable vigente (Inyectada dinámicamente desde el RAG):
-        {state.get('articulos_legales', '')}
-
-        Contenido del material promocional a evaluar (Extraído por el procesador de archivos):
-        {state.get('archivo_contenido', '')}
-
-        Redactá un informe técnico detallando las concordancias detectadas o listando taxativamente cada una de las infracciones normativas encontradas.
-        """
+Normativa aplicable general (recuperada del RAG):
+{state.get('articulos_legales', '')}
+{seccion_regla}
+Contenido textual del material promocional:
+{state.get('archivo_contenido', '')}
+{seccion_visual}
+Redactá un informe técnico detallando las concordancias detectadas o listando taxativamente cada infracción normativa encontrada con respecto a la normativa y a la regla específica provista.
+Considerá tanto el texto como las imágenes en tu análisis."""
 
         resp = self.llm.invoke([SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)])
-        
-        print("✓ [ESPECIALISTA] Informe normativo consolidado en el Estado.")
+
+        print("[ESPECIALISTA LEGAL] Informe normativo consolidado.")
         return {"reporte_especialista": resp.content}

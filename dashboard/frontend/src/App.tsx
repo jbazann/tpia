@@ -498,7 +498,14 @@ function App() {
                                                                 Eliminar
                                                             </button>
                                                             {file.error && (
-                                                                <div className="error-message">{file.error}</div>
+                                                                <div className="error-message" style={{ maxWidth: '500px', wordBreak: 'break-word' }}>
+                                                                    <strong>{file.error}</strong>
+                                                                    {file.output && (
+                                                                        <pre style={{ fontSize: '0.75rem', marginTop: '6px', whiteSpace: 'pre-wrap', opacity: 0.85 }}>
+                                                                            {file.output}
+                                                                        </pre>
+                                                                    )}
+                                                                </div>
                                                             )}
                                                         </td>
                                                     </tr>

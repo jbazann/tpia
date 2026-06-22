@@ -34,6 +34,16 @@ try:
 except ImportError:
     pass  # python-dotenv no instalado; se asume que las vars de entorno ya están seteadas
 
+# Configurar sys.path para que los imports de 'src' funcionen correctamente
+if getattr(sys, 'frozen', False):
+    sys.path.insert(0, sys._MEIPASS)
+else:
+    sys.path.insert(0, str(Path(__file__).parent))
+
+# Importar los módulos principales a nivel de módulo para que PyInstaller los analice y empaquete
+from src.utils.pdf_reader import read_pdf, detect_media_type
+from src.agents.main_agent import MainAgent
+
 # Manejo de rutas cuando se ejecuta desde un bundle de PyInstaller
 def get_base_path():
     """Obtener la ruta base de la aplicación (funciona en desarrollo y en bundle de PyInstaller)."""
@@ -99,10 +109,6 @@ def main():
         if getattr(sys, 'frozen', False):
             sys.path.insert(0, base_path)
         
-        # Importar los módulos necesarios
-        from src.utils.pdf_reader import read_pdf
-        from src.agents.main_agent import MainAgent
-        
         # Cargar configuración: verificar múltiples ubicaciones
         config_path = None
         for potential_path in [
@@ -133,7 +139,6 @@ def main():
             sys.exit(1)
         
         print(f"Procesando archivo: {args.pdf_path}")
-        from src.utils.pdf_reader import read_pdf, detect_media_type
         pdf_abs_path = os.path.abspath(args.pdf_path)
         pdf_context = read_pdf(pdf_abs_path)
 

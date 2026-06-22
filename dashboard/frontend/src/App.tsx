@@ -259,7 +259,7 @@ function App() {
             {/* Topbar */}
             <nav className="topbar">
                 <div className="topbar-brand">
-                    <span>Dashboard TPIA</span>
+                    <span>Auditor Normativo de Pautas</span>
                 </div>
                 <div className="topbar-menu">
                     <button

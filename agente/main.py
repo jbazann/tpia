@@ -9,8 +9,28 @@ from pathlib import Path
 # para que GROQ_API_KEY y otras variables estén disponibles
 try:
     from dotenv import load_dotenv
-    _env_file = Path(__file__).parent / ".env"
-    load_dotenv(dotenv_path=_env_file if _env_file.exists() else None, override=False)
+    if getattr(sys, 'frozen', False):
+        base_dir = Path(sys.executable).parent
+    else:
+        base_dir = Path(__file__).parent
+
+    potential_env_files = [
+        base_dir / ".env",
+        base_dir.parent / ".env",
+        Path(".env"),
+        Path("agente/.env")
+    ]
+    
+    loaded = False
+    for env_path in potential_env_files:
+        if env_path.exists():
+            load_dotenv(dotenv_path=env_path, override=True)
+            print(f"[ENV] Cargado archivo de entorno desde: {env_path.resolve()}")
+            loaded = True
+            break
+            
+    if not loaded:
+        print("[ENV] Advertencia: No se encontró ningún archivo .env en las rutas buscadas.")
 except ImportError:
     pass  # python-dotenv no instalado; se asume que las vars de entorno ya están seteadas
 

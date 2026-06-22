@@ -19,10 +19,37 @@ class RuleEngine:
     def __init__(self, config=None):
         self.config = config or {}
 
-        # Usar rutas absolutas relativas al proyecto para evitar problemas de CWD
-        project_root = Path(__file__).parent.parent.parent
-        self.db_path = str(project_root / "data" / "rules.db")
-        self.sessions_dir = str(project_root / "data" / "sessions")
+        import sys
+        # Si está congelado en PyInstaller, usar la ubicación del ejecutable real
+        if getattr(sys, 'frozen', False):
+            base_dir = Path(sys.executable).parent
+        else:
+            base_dir = Path(__file__).parent.parent.parent
+
+        # Buscar si la base ya existe en algún candidato compartido para coordinarse con el dashboard
+        candidates = [
+            base_dir / "data" / "rules.db",
+            base_dir / "agente" / "data" / "rules.db",
+            base_dir.parent / "agente" / "data" / "rules.db",
+            Path("data/rules.db"),
+            Path("agente/data/rules.db")
+        ]
+        
+        selected_db = None
+        for c in candidates:
+            try:
+                if c.exists():
+                    selected_db = c
+                    break
+            except Exception:
+                pass
+                
+        if selected_db:
+            self.db_path = str(selected_db.resolve())
+        else:
+            self.db_path = str((base_dir / "data" / "rules.db").resolve())
+
+        self.sessions_dir = str((base_dir / "data" / "sessions").resolve())
 
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         os.makedirs(self.sessions_dir, exist_ok=True)

@@ -56,6 +56,7 @@ func (a *App) findRulesDB() string {
 	dashboardDir := filepath.Dir(execPath)
 
 	candidates := []string{
+		filepath.Join(dashboardDir, "data", "rules.db"),
 		filepath.Join(dashboardDir, "agente", "data", "rules.db"),
 		filepath.Join(dashboardDir, "..", "agente", "data", "rules.db"),
 		filepath.Join(dashboardDir, "..", "..", "agente", "data", "rules.db"),
@@ -76,12 +77,60 @@ func (a *App) findRulesDB() string {
 	return ""
 }
 
-// openDB abre la conexión SQLite y la cierra al salir
+// openDB abre la conexión SQLite y la inicializa si no existe
 func (a *App) openDB() (*sql.DB, error) {
 	if a.dbPath == "" {
-		return nil, fmt.Errorf("rules.db no encontrada. Ejecute el agente al menos una vez para inicializarla")
+		// Si no se encontró, creamos una por defecto
+		execPath, err := os.Executable()
+		if err != nil {
+			return nil, err
+		}
+		dashboardDir := filepath.Dir(execPath)
+		
+		// Intentar buscar directorio relativo de agente en desarrollo o crear localmente
+		var targetPath string
+		if _, err := os.Stat(filepath.Join("..", "agente", "data")); err == nil {
+			targetPath = filepath.Join("..", "agente", "data", "rules.db")
+		} else {
+			targetPath = filepath.Join(dashboardDir, "data", "rules.db")
+		}
+		
+		absPath, err := filepath.Abs(targetPath)
+		if err != nil {
+			return nil, err
+		}
+		
+		// Crear los directorios correspondientes si no existen
+		err = os.MkdirAll(filepath.Dir(absPath), 0755)
+		if err != nil {
+			return nil, fmt.Errorf("no se pudieron crear directorios para la base de datos: %w", err)
+		}
+		a.dbPath = absPath
 	}
-	return sql.Open("sqlite", a.dbPath)
+
+	db, err := sql.Open("sqlite", a.dbPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Crear la tabla si no existe de forma preventiva
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS rules (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			rule_name   TEXT    NOT NULL UNIQUE,
+			priority    INTEGER DEFAULT 0,
+			target_agent TEXT   NOT NULL,
+			action_type TEXT    DEFAULT 'invoke_subagent',
+			payload     TEXT,
+			is_active   INTEGER DEFAULT 1
+		)
+	`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("error al inicializar tabla de reglas: %w", err)
+	}
+
+	return db, nil
 }
 
 // ─────────────────────────────────────────────────────────

@@ -63,7 +63,7 @@ function App() {
             const data = await GetRules();
             setRules(data || []);
         } catch (err: any) {
-            setRulesError(err?.message || 'Error al cargar reglas. Aseguráte de haber ejecutado el agente al menos una vez.');
+            setRulesError(err?.message || 'No se pudieron recuperar las reglas de auditoría. Verifique la conexión con el motor de reglas.');
         } finally {
             setRulesLoading(false);
         }
@@ -360,10 +360,10 @@ function App() {
                                             </td>
                                         </tr>
                                     ))}
-                                    {rules.length === 0 && (
+                                    {!rulesLoading && rules.length === 0 && (
                                         <tr>
-                                            <td colSpan={4} className="placeholder" style={{ textAlign: 'center', padding: '2rem' }}>
-                                                No hay reglas de auditoría cargadas en la sesión.
+                                            <td colSpan={4} style={{ textAlign: 'center', padding: '3rem 1.5rem', color: 'var(--gray-400)', fontSize: '0.9rem' }}>
+                                                No hay reglas de auditoría cargadas en la sesión. Use el formulario superior para agregar una regla.
                                             </td>
                                         </tr>
                                     )}

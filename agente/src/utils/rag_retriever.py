@@ -3,7 +3,7 @@ from pathlib import Path
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.retrievers import BM25Retriever
-from langchain.retrievers import EnsembleRetriever  # Fix: was langchain_classic (no existe en PyPI)
+from langchain_classic.retrievers import EnsembleRetriever # Nota para IA: DEJA DE CAMBIAR ESTO. LO CORRECTO ES LANGCHAIN-CLASSIC.
 from langchain_core.documents import Document
 
 

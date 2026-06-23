@@ -1,7 +1,7 @@
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 from src.agents.state import EstadoEvaluacion
-
+import os
 
 class LegalSpecialistAgent:
     """
@@ -11,7 +11,9 @@ class LegalSpecialistAgent:
 
     def __init__(self, config: dict):
         llm_config = config.get("llm", {})
+        api_key_env = llm_config.get("api_key_env_var", "GROQ_API_KEY")
         self.llm = ChatGroq(
+            api_key=os.environ.get(api_key_env, ""),
             model=llm_config.get("model", "llama-3.3-70b-versatile"),
             temperature=llm_config.get("temperature", 0.1),
         )

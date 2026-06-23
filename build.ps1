@@ -10,7 +10,10 @@ param(
     [switch]$SkipAgentBuild = $false,
     
     [Parameter(Mandatory=$false)]
-    [switch]$SkipDashboardBuild = $false
+    [switch]$SkipDashboardBuild = $false,
+
+    [Parameter(Mandatory=$false)]
+    [string]$PythonBin = "python"
 )
 
 $ErrorActionPreference = "Stop"
@@ -41,13 +44,13 @@ function Write-Fail {
 
 # Verify Python is installed
 function Test-PythonInstalled {
-    $cmd = Get-Command python -ErrorAction SilentlyContinue
+    $cmd = Get-Command $PythonBin -ErrorAction SilentlyContinue
     if (-not $cmd) {
-        Write-Fail "Python is not installed or not in PATH"
+        Write-Fail "Python ($PythonBin) is not installed or not in PATH"
         return $false
     }
     try {
-        $version = & python --version 2>&1
+        $version = & $PythonBin --version 2>&1
         Write-Success "[OK] Python found: $version"
         return $true
     } catch {
@@ -76,7 +79,7 @@ function Test-GoInstalled {
 # Install PyInstaller
 function Install-PyInstaller {
     Write-Info "Installing PyInstaller..."
-    python -m pip install pyinstaller --quiet
+    & $PythonBin -m pip install pyinstaller --quiet
     Write-Success "[OK] PyInstaller installed"
 }
 
@@ -91,7 +94,7 @@ function Build-Agent {
     
     # Check if PyInstaller is installed
     try {
-        python -m PyInstaller --version | Out-Null
+        & $PythonBin -m PyInstaller --version | Out-Null
     } catch {
         Install-PyInstaller
     }
@@ -99,7 +102,7 @@ function Build-Agent {
     # Install agent dependencies
     Write-Info "Installing agent dependencies..."
     Set-Location $AgenteDir
-    python -m pip install -r requirements.txt --quiet
+    & $PythonBin -m pip install -r requirements.txt --quiet
     Set-Location $ScriptDir
 
     # Copy config.yaml to a location where PyInstaller can bundle it
@@ -116,7 +119,7 @@ function Build-Agent {
 
     # Install requirements (quiet) -- continue if this fails but warn
     try {
-        python -m pip install -r requirements.txt --quiet
+        & $PythonBin -m pip install -r requirements.txt --quiet
     } catch {
         Write-Info "Warning: failed installing some agent dependencies: $_"
     }
@@ -130,7 +133,7 @@ function Build-Agent {
 
     # Run PyInstaller
     try {
-        python -m PyInstaller --onefile --name "agente" --add-data "$addData" --distpath dist --workpath build --clean main.py --noconfirm
+        & $PythonBin -m PyInstaller --onefile --name "agente" --add-data "$addData" --distpath dist --workpath build --clean main.py --noconfirm
     } catch {
         Write-Fail "PyInstaller failed: $_"
         Set-Location $ScriptDir
@@ -171,9 +174,9 @@ function Build-Dashboard {
     # Build with Wails
     Write-Info "Running Wails build..."
     if ($BuildType -eq "debug") {
-        wails build -debug -webpackdir "./frontend" -o dashboard-debug 2>&1
+        wails build -debug -o dashboard-debug.exe 2>&1
     } else {
-        wails build -webpackdir "./frontend" -o dashboard 2>&1
+        wails build -o dashboard.exe 2>&1
     }
 
     Set-Location $ScriptDir

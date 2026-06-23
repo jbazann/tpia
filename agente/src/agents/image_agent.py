@@ -25,6 +25,13 @@ class ImageAgent:
         self.groq_api_key = os.environ.get(
             llm_config.get("api_key_env_var", "GROQ_API_KEY"), ""
         )
+        
+        if self.groq_api_key:
+            # Imprimir un debug censurado para ayudar al usuario a verificar si Python realmente está leyendo la variable
+            masked_key = self.groq_api_key[:6] + "..." + self.groq_api_key[-4:] if len(self.groq_api_key) > 10 else "MUY_CORTA"
+            print(f"[DEBUG] ImageAgent leyó la API Key: {masked_key}")
+        else:
+            print(f"[DEBUG] ImageAgent NO encontró la API Key en el entorno.")
         # Modelo multimodal; se puede sobrescribir en config.yaml bajo llm.vision_model
         self.vision_model = llm_config.get(
             "vision_model", "meta-llama/llama-4-scout-17b-16e-instruct"

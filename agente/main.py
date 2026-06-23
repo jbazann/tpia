@@ -84,8 +84,14 @@ def main():
             sys.path.insert(0, base_path)
         
         # Importar los módulos necesarios
+        print("[INFO] Cargando librerías de IA (esto puede tardar unos momentos)...")
+        sys.stdout.flush()
+        
         from src.utils.pdf_reader import read_pdf
         from src.agents.main_agent import MainAgent
+        
+        print("[INFO] Librerías cargadas correctamente.")
+        sys.stdout.flush()
         
         # Cargar configuración: verificar múltiples ubicaciones
         config_path = None

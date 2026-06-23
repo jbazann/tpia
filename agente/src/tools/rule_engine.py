@@ -58,28 +58,40 @@ class RuleEngine:
         self._cleanup_old_sessions()  # Limpiar sesiones viejas en cada inicio
 
     def _init_database(self):
-        """Inicializa el esquema SQLite solo si la DB no existe aún."""
-        if os.path.exists(self.db_path):
-            return
-
+        """Inicializa el esquema SQLite y carga reglas por defecto si está vacía."""
+        db_exists = os.path.exists(self.db_path)
+        
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
-            CREATE TABLE rules (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                rule_name   TEXT    NOT NULL UNIQUE,
-                priority    INTEGER DEFAULT 0,
-                target_agent TEXT   NOT NULL,
-                action_type TEXT    DEFAULT 'invoke_subagent',
-                payload     TEXT,
-                is_active   INTEGER DEFAULT 1
-            )
-        """)
+        if not db_exists:
+            cursor.execute("""
+                CREATE TABLE rules (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    rule_name   TEXT    NOT NULL UNIQUE,
+                    priority    INTEGER DEFAULT 0,
+                    target_agent TEXT   NOT NULL,
+                    action_type TEXT    DEFAULT 'invoke_subagent',
+                    payload     TEXT,
+                    is_active   INTEGER DEFAULT 1
+                )
+            """)
+            print("[RuleEngine] Base de datos de reglas creada.")
+
+        # Verificar si hay reglas y popular si está vacía
+        cursor.execute("SELECT COUNT(*) FROM rules")
+        if cursor.fetchone()[0] == 0:
+            cursor.executemany("""
+                INSERT INTO rules (rule_name, priority, target_agent, action_type, payload, is_active)
+                VALUES (?, ?, ?, ?, ?, 1)
+            """, [
+                ("auditoria_integral", 10, "legal_evaluation_flow", "invoke_subagent", "Validar presencia de marca y que las advertencias ocupen el porcentaje reglamentario."),
+                ("cierre_auditoria", 90, "none", "stop", "Fin de la evaluación del PDF.")
+            ])
+            print("[RuleEngine] Reglas de prueba hardcodeadas e insertadas con éxito.")
 
         conn.commit()
         conn.close()
-        print("[RuleEngine] Base de datos de reglas inicializada vacía.")
 
     # ──────────────────────────────────────────────
     # Sesiones
@@ -136,9 +148,11 @@ class RuleEngine:
     # ──────────────────────────────────────────────
 
     def get_next_rules(self, session_id: str) -> list:
+        print(f"[RuleEngine] Buscando próxima regla para la sesión {session_id}...")
         session_state = self._load_session(session_id)
 
         if not session_state.get("is_active"):
+            print("[RuleEngine] La sesión no está activa.")
             return []
 
         conn = sqlite3.connect(self.db_path)
@@ -157,9 +171,11 @@ class RuleEngine:
         pending = [r for r in all_rules if r["id"] not in executed_ids]
 
         if not pending:
+            print("[RuleEngine] No hay reglas pendientes en la base de datos para esta sesión.")
             return []
 
         next_rule = pending[0]
+        print(f"[RuleEngine] Regla obtenida: '{next_rule['rule_name']}' (Acción: {next_rule['action_type']}, Destino: {next_rule['target_agent']})")
         return [{
             "rule_id":      next_rule["id"],
             "rule_name":    next_rule["rule_name"],

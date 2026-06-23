@@ -71,6 +71,9 @@ class MainAgent:
 
         loop_counter = 0
         max_iterations = 10
+        
+        final_verdict = None
+        final_justification = None
 
         try:
             while loop_counter < max_iterations:
@@ -92,7 +95,8 @@ class MainAgent:
 
                     if action == "invoke_subagent":
                         if target == "legal_evaluation_flow":
-                            print("  [LangGraph] Iniciando flujo multi-agente...")
+                            print(f"  [LangGraph] Iniciando flujo multi-agente...")
+                            print(f"  [LangGraph] Sub-agentes que serán invocados secuencialmente: ImageAgent -> RAGAgent -> LegalSpecialist -> VerdictIssuer")
 
                             estado_inicial = {
                                 "solicitud_id":      f"SOL-{str(uuid.uuid4())[:8].upper()}",
@@ -104,12 +108,15 @@ class MainAgent:
                             }
 
                             resultado = self.app.invoke(estado_inicial)
+                            
+                            final_verdict = resultado.get('veredicto_final')
+                            final_justification = resultado.get('justificacion_final')
 
                             print("\n" + "=" * 55)
-                            print("RESULTADO DE LA EVALUACIÓN")
+                            print(f"RESULTADO DE LA EVALUACIÓN (Regla: '{rule_name}')")
                             print("=" * 55)
-                            print(f"Veredicto : {resultado.get('veredicto_final')}")
-                            print(f"Dictamen  :\n{resultado.get('justificacion_final')}")
+                            print(f"Veredicto : {final_verdict}")
+                            print(f"Dictamen  :\n{final_justification}")
                             print("=" * 55 + "\n")
 
                         else:
@@ -131,4 +138,15 @@ class MainAgent:
 
         finally:
             self.rule_engine.close_session(self.session_id)
+            
+            print("\n" + "★" * 65)
+            print("★ RESULTADO FINAL DEL PROCESAMIENTO (RESUMEN)")
+            print("★" * 65)
+            if final_verdict:
+                print(f"★ VEREDICTO DEFINITIVO : {final_verdict}")
+                print(f"★ JUSTIFICACIÓN FINAL  :\n{final_justification}")
+            else:
+                print("★ No se emitió ningún veredicto durante el flujo.")
+            print("★" * 65 + "\n")
+            
             print("=== Procesamiento finalizado ===")

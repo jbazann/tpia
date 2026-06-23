@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 
 	_ "modernc.org/sqlite"
 )
@@ -338,6 +339,11 @@ func (a *App) ExecuteAgent(filePath string, prompt string) (map[string]interface
 			cmd = exec.Command(pythonCmd, filepath.Join(agentDir, "main.py"), "-f", filePath)
 		}
 		cmd.Dir = agentDir
+	}
+
+	// En Windows, ocultar la ventana de consola negra que abre el proceso Python
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	}
 
 	output, err := cmd.CombinedOutput()

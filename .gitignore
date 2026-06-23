@@ -33,6 +33,7 @@ MANIFEST
 *.exe
 !dist/dashboard.exe
 !dist/main.exe
+!dist/agente.exe
 agente/build/
 agente/dist/
 

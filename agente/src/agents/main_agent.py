@@ -46,7 +46,7 @@ class MainAgent:
 
         self.app = workflow.compile()
         print("[SISTEMA] Grafo multi-agente LangGraph compilado correctamente.")
-        print("[SISTEMA] Flujo: ImageAgent → RAGAgent → LegalSpecialist → VerdictIssuer")
+        print("[SISTEMA] Flujo: ImageAgent -> RAGAgent -> LegalSpecialist -> VerdictIssuer")
 
     def run(self, pdf_context: str, prompt: str = "", tipo_medio: str = "general", pdf_path: str = ""):
         """
@@ -88,7 +88,7 @@ class MainAgent:
                     rule_name = rule.get("rule_name")
                     target    = rule.get("target_agent")
 
-                    print(f"  [Rule] '{rule_name}' → {target}")
+                    print(f"  [Rule] '{rule_name}' -> {target}")
 
                     if action == "invoke_subagent":
                         if target == "legal_evaluation_flow":

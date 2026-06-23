@@ -71,9 +71,20 @@ class TeeLogger:
         self.log = open(filename, "w", encoding="utf-8")
 
     def write(self, message):
-        self.terminal.write(message)
-        self.log.write(message)
-        self.log.flush()
+        try:
+            self.terminal.write(message)
+        except Exception:
+            try:
+                encoding = getattr(self.terminal, 'encoding', 'ascii') or 'ascii'
+                encoded_message = message.encode(encoding, errors='replace').decode(encoding)
+                self.terminal.write(encoded_message)
+            except Exception:
+                pass
+        try:
+            self.log.write(message)
+            self.log.flush()
+        except Exception:
+            pass
 
     def flush(self):
         self.terminal.flush()

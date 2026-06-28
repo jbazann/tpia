@@ -1,6 +1,9 @@
 # Build outputs
 # dist/ # no excluir para distribuir binarios
 build/
+dist/agente
+dist/agente.exe
+dist/main.exe
 
 # Python
 __pycache__/
@@ -32,8 +35,6 @@ MANIFEST
 *.spec
 *.exe
 !dist/dashboard.exe
-!dist/main.exe
-!dist/agente.exe
 agente/build/
 agente/dist/
 

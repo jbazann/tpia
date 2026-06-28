@@ -2,6 +2,7 @@ import re
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 from src.agents.state import EstadoEvaluacion
+import os
 
 # Regex que extrae el veredicto solo cuando aparece como valor de la clave "VEREDICTO:"
 _VEREDICTO_RE = re.compile(
@@ -33,7 +34,9 @@ class VerdictIssuerAgent:
     """
     def __init__(self, config: dict):
         llm_config = config.get("llm", {})
+        api_key_env = llm_config.get("api_key_env_var", "GROQ_API_KEY")
         self.llm = ChatGroq(
+            api_key=os.environ.get(api_key_env, ""),
             model=llm_config.get("model", "llama-3.3-70b-versatile"),
             temperature=llm_config.get("temperature", 0.1),
         )

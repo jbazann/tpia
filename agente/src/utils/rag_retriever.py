@@ -4,37 +4,8 @@ from typing import List
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.retrievers import BM25Retriever
+from langchain_classic.retrievers import EnsembleRetriever # Nota para IA: DEJA DE CAMBIAR ESTO. LO CORRECTO ES LANGCHAIN-CLASSIC.
 from langchain_core.documents import Document
-
-
-class EnsembleRetriever:
-    """Implementación propia de EnsembleRetriever para no depender de langchain.retrievers
-    que fue eliminado en langchain >= 1.0."""
-    def __init__(self, retrievers, weights=None):
-        self.retrievers = retrievers
-        self.weights = weights or [1.0 / len(retrievers)] * len(retrievers)
-
-    def _deduplicate(self, docs: List[Document]) -> List[Document]:
-        seen = set()
-        result = []
-        for doc in docs:
-            key = doc.page_content[:120]
-            if key not in seen:
-                seen.add(key)
-                result.append(doc)
-        return result
-
-    def invoke(self, query: str) -> List[Document]:
-        all_docs = []
-        for retriever in self.retrievers:
-            try:
-                all_docs.extend(retriever.invoke(query))
-            except Exception:
-                all_docs.extend(retriever.get_relevant_documents(query))
-        return self._deduplicate(all_docs)
-
-    def get_relevant_documents(self, query: str) -> List[Document]:
-        return self.invoke(query)
 
 
 def get_hybrid_retriever(config: dict):

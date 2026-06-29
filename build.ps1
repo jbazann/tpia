@@ -174,9 +174,9 @@ function Build-Dashboard {
     # Build with Wails
     Write-Info "Running Wails build..."
     if ($BuildType -eq "debug") {
-        wails build -debug -o dashboard-debug.exe 2>&1
+        wails build -debug -o dashboard-debug.exe | Out-Host
     } else {
-        wails build -o dashboard.exe 2>&1
+        wails build -o dashboard.exe | Out-Host
     }
 
     Set-Location $ScriptDir
@@ -322,6 +322,32 @@ function Init-RagDb {
     }
 }
 
+# Initialize Rules Database if agent is present
+function Init-RulesDb {
+    $agentExe = ""
+    if (Test-Path (Join-Path $OutputDir "agente.exe")) {
+        $agentExe = Join-Path $OutputDir "agente.exe"
+    } elseif (Test-Path (Join-Path $OutputDir "agente")) {
+        $agentExe = Join-Path $OutputDir "agente"
+    }
+
+    if ($agentExe -ne "") {
+        Write-Info "Initializing Rules Database via agent executable..."
+        Set-Location $OutputDir
+        try {
+            & $agentExe --InitRulesDb
+            if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq $null) {
+                Write-Success "[OK] Rules Database initialized in dist/"
+            } else {
+                Write-Fail "Failed to initialize Rules Database (exit code $LASTEXITCODE)"
+            }
+        } catch {
+            Write-Fail "Failed to initialize Rules Database: $_"
+        }
+        Set-Location $ScriptDir
+    }
+}
+
 # Main build flow
 function Main {
     Write-Info "======================================"
@@ -366,8 +392,9 @@ function Main {
     # Create distribution
     Create-Distribution
     
-    # Initialize RAG Database
+    # Initialize Databases
     Init-RagDb
+    Init-RulesDb
 
     Write-Host ""
     Write-Success "======================================"

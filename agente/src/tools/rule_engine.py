@@ -85,10 +85,13 @@ class RuleEngine:
                 INSERT INTO rules (rule_name, priority, target_agent, action_type, payload, is_active)
                 VALUES (?, ?, ?, ?, ?, 1)
             """, [
-                ("auditoria_integral", 10, "legal_evaluation_flow", "invoke_subagent", "Validar presencia de marca y que las advertencias ocupen el porcentaje reglamentario."),
-                ("cierre_auditoria", 90, "none", "stop", "Fin de la evaluación del PDF.")
+                ("grafica_presencia_logo", 10, "legal_evaluation_flow", "invoke_subagent", "Validar a través del análisis visual que la pieza publicitaria contenga de forma clara y visible el logo oficial de 'Lotería de Santa Fe'. Indicar si se encuentra o si está ausente."),
+                ("grafica_leyendas_obligatorias", 20, "legal_evaluation_flow", "invoke_subagent", "Verificar mediante el texto extraído y el OCR visual la presencia textual EXACTA de las dos frases obligatorias: 'SOLO PARA MAYORES DE 18 AÑOS' y 'EL JUGAR COMPULSIVAMENTE ES PERJUDICIAL PARA LA SALUD'. Reportar cualquier omisión o alteración en el texto."),
+                ("grafica_formato_zocalo", 30, "legal_evaluation_flow", "invoke_subagent", "Evaluar la disposición visual de las leyendas. Éstas deben estar agrupadas junto al logo de Lotería de Santa Fe, ubicadas estrictamente AL PIE de la pieza gráfica, y deben ocupar la totalidad del espacio horizontal (100% del ancho). Además, la altura de este zócalo debe ser visualmente igual o mayor al 10% de la altura total del anuncio."),
+                ("grafica_excepcion_indumentaria", 40, "legal_evaluation_flow", "invoke_subagent", "Si la pieza gráfica corresponde claramente a un espacio alternativo donde el zócalo estándar no aplica (por ejemplo, diseño de camisetas o indumentaria), validar que se cumpla la excepción del Artículo 5: debajo de la marca de la empresa debe estar en dos renglones la leyenda 'SOLO PARA MAYORES DE 18 AÑOS' junto al logo de Lotería de Santa Fe. Si es un banner gráfico tradicional, ignorar esta validación."),
+                ("cierre_auditoria", 100, "none", "stop", "Fin de la evaluación del PDF.")
             ])
-            print("[RuleEngine] Reglas de prueba hardcodeadas e insertadas con éxito.")
+            print("[RuleEngine] Nuevas reglas para publicidad gráfica insertadas con éxito.")
 
         conn.commit()
         conn.close()

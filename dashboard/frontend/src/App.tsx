@@ -41,6 +41,7 @@ function App() {
 
     const [agentLogs, setAgentLogs] = useState<string>("Cargando logs...");
     const logConsoleRef = useRef<HTMLDivElement>(null);
+    const [isFollowingLogs, setIsFollowingLogs] = useState(false);
 
     const refreshLogs = async () => {
         try {
@@ -96,6 +97,20 @@ function App() {
         if (activeMenu === 'observabilidad') refreshLogs();
         if (activeMenu === 'agente') updateServiceStatus();
     }, [activeMenu]);
+
+    // Polling effect para Seguir Logs
+    useEffect(() => {
+        let interval: ReturnType<typeof setInterval>;
+        if (activeMenu === 'observabilidad' && isFollowingLogs) {
+            refreshLogs(); // Fetch inmediatamente al activar o cambiar de pestaña
+            interval = setInterval(() => {
+                refreshLogs();
+            }, 5000);
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [activeMenu, isFollowingLogs]);
 
     useEffect(() => {
         updateServiceStatus();
@@ -262,12 +277,12 @@ function App() {
     // Parse verdict from output log
     const parseVerdict = (output?: string) => {
         if (!output) return null;
-        if (output.includes('Veredicto: APROBAR')) return 'APROBAR';
-        if (output.includes('Veredicto: RECHAZAR')) return 'RECHAZAR';
-        if (output.includes('Veredicto: REVISAR')) return 'REVISAR';
-        if (output.toLowerCase().includes('veredicto: aprobar')) return 'APROBAR';
-        if (output.toLowerCase().includes('veredicto: rechazar')) return 'RECHAZAR';
-        if (output.toLowerCase().includes('veredicto: revisar')) return 'REVISAR';
+        
+        const match = output.match(/VEREDICTO DEFINITIVO\s*:\s*(APROBAR|RECHAZAR|REVISAR)/i);
+        if (match && match[1]) {
+            return match[1].toUpperCase();
+        }
+        
         return null;
     };
 
@@ -592,8 +607,18 @@ function App() {
                             <div className="logs-summary-card">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                     <h3 style={{ marginBottom: 0 }}>Registros del Motor de Inferencia (LangGraph)</h3>
-                                    <button className="btn-small" onClick={refreshLogs} style={{ background: 'var(--blue-100)', color: 'var(--blue-700)' }}>
-                                        Actualizar Logs
+                                    <button 
+                                        className="btn-small" 
+                                        onClick={() => setIsFollowingLogs(!isFollowingLogs)} 
+                                        style={{ 
+                                            background: isFollowingLogs ? 'var(--green-600, #2b8a3e)' : 'var(--blue-100, #d0ebff)', 
+                                            color: isFollowingLogs ? 'white' : 'var(--blue-700, #1864ab)',
+                                            fontWeight: isFollowingLogs ? 'bold' : 'normal',
+                                            transition: 'all 0.2s ease',
+                                            boxShadow: isFollowingLogs ? '0 0 8px rgba(43, 138, 62, 0.4)' : 'none'
+                                        }}
+                                    >
+                                        {isFollowingLogs ? '● Siguiendo Logs...' : '▶ Seguir Logs'}
                                     </button>
                                 </div>
                                 <div className="log-console" ref={logConsoleRef} style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', padding: '1rem', background: '#1e1e1e', color: '#d4d4d4', borderRadius: '4px', height: '400px', overflowY: 'auto' }}>

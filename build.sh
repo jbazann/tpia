@@ -347,6 +347,30 @@ init_rag_db() {
     return 0
 }
 
+# Initialize Rules Database if agent is present
+init_rules_db() {
+    local agent_exe=""
+    if [[ -f "$OUTPUT_DIR/agente" ]]; then
+        agent_exe="$OUTPUT_DIR/agente"
+    elif [[ -f "$OUTPUT_DIR/agente.exe" ]]; then
+        agent_exe="$OUTPUT_DIR/agente.exe"
+    fi
+
+    if [[ -n "$agent_exe" ]]; then
+        write_info "Initializing Rules Database via agent executable..."
+        pushd "$OUTPUT_DIR" > /dev/null
+        if "./$(basename "$agent_exe")" --InitRulesDb; then
+            write_success "[OK] Rules Database initialized in dist/"
+        else
+            write_fail "Failed to initialize Rules Database"
+            popd > /dev/null
+            return 1
+        fi
+        popd > /dev/null
+    fi
+    return 0
+}
+
 # Main build flow
 main() {
     write_info "======================================"
@@ -394,6 +418,11 @@ main() {
     # Initialize RAG Database
     if ! init_rag_db; then
         write_info "Warning: Database initialization failed"
+    fi
+
+    # Initialize Rules Database
+    if ! init_rules_db; then
+        write_info "Warning: Rules Database initialization failed"
     fi
 
     echo ""

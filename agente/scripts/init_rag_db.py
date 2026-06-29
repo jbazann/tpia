@@ -8,10 +8,11 @@ from langchain_chroma import Chroma
 
 # ==========================================
 # 1. CONTENIDO DE LA RESOLUCIÓN
+# Omitido: Las leyendas establecidas, deberán ser proporcionadas dentro del espacio destinado a la pieza publicitaria, ocupando al pie de la misma, la totalidad de su espacio horizontal, y con una altura igual o mayor al 10% de la altura total del anuncio.
 # ==========================================
 full_text = """
 1. Publicidad Gráfica
-Toda publicidad de casinos físicos y apuestas en línea difundidas a través de internet, plataformas de medios o redes sociales, cartelería en la vía pública, medios o plataformas de difusión gráfica, deberá incluir las leyendas "SOLO PARA MAYORES DE 18 AÑOS" Y "EL JUGAR COMPULSIVAMENTE ES PERJUDICIAL PARA LA SALUD", ambas en los términos establecidos en el presente, y junto al logo de LOTERÍA DE SANTA FE. Las leyendas establecidas, deberán ser proporcionadas dentro del espacio destinado a la pieza publicitaria, ocupando al pie de la misma, la totalidad de su espacio horizontal, y con una altura igual o mayor al 10% de la altura total del anuncio.
+Toda publicidad de casinos físicos y apuestas en línea difundidas a través de internet, plataformas de medios o redes sociales, cartelería en la vía pública, medios o plataformas de difusión gráfica, deberá incluir las leyendas "SOLO PARA MAYORES DE 18 AÑOS" Y "EL JUGAR COMPULSIVAMENTE ES PERJUDICIAL PARA LA SALUD", ambas en los términos establecidos en el presente, y junto al logo de LOTERÍA DE SANTA FE. 
 
 2. Publicidad radial
 En publicidades emitidas por medios radiales, sólo será obligatoria la leyenda "SOLO PARA MAYORES DE 18 AÑOS ES UN MENSAJE DE LOTERÍA DE SANTA FE" que deberá estar al finalizar el anuncio, debiendo ser locutada en forma clara, sin música de fondo, audible y comprensible, no pudiendo ser la misma más veloz, en comparación con el texto locutado en el cuerpo principal del anuncio.

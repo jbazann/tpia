@@ -1,6 +1,8 @@
 import os
+import sys
 import base64
 import tempfile
+import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -40,6 +42,38 @@ def extract_images_from_pdf(pdf_path: str) -> list[dict]:
     doc.close()
     print(f"[ImageTools] {len(images)} imagen(es) extraída(s) del PDF.")
     return images
+
+
+def log_image_for_observability(image_b64: str, ext: str, page: int, index: int) -> str:
+    """
+    Guarda la imagen decodificada en disco a modo de log para trazabilidad y observabilidad.
+    Retorna la ruta absoluta del archivo guardado.
+    """
+    # Determinar ruta base
+    if getattr(sys, 'frozen', False):
+        base_dir = Path(sys.executable).parent
+    else:
+        # src/tools/image_tools.py -> parent.parent.parent -> agente/
+        base_dir = Path(__file__).parent.parent.parent
+
+    # Crear directorio para imágenes de log
+    logs_dir = base_dir / "data" / "logs" / "images"
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"img_log_{timestamp}_p{page}_i{index}.{ext}"
+    filepath = logs_dir / filename
+    
+    try:
+        print(f"[ImageTools] Guardando archivo de log: {filename}")
+        img_bytes = base64.b64decode(image_b64)
+        with open(filepath, "wb") as f:
+            f.write(img_bytes)
+        print(f"[ImageTools] Imagen guardada para observabilidad en: {filepath}")
+        return str(filepath)
+    except Exception as e:
+        print(f"[ImageTools] Error al guardar imagen de log: {e}")
+        return ""
 
 
 def ocr_image(image_b64: str, ext: str = "png") -> str:
@@ -159,10 +193,14 @@ def analyze_pdf_images(pdf_path: str, groq_api_key: str, model: str) -> str:
     reports = []
     for img in images:
         page = img["page"]
+        index = img.get("index", 0)
         ext = img["ext"]
         b64 = img["data_b64"]
 
         print(f"[ImageTools] Analizando imagen en página {page}...")
+        
+        # Guardar imagen a modo de log para trazabilidad
+        log_image_for_observability(b64, ext, page, index)
 
         # OCR: texto en la imagen
         ocr_text = ocr_image(b64, ext)

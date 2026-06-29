@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from typing import List
 from langchain_chroma import Chroma
@@ -15,11 +16,15 @@ def get_hybrid_retriever(config: dict):
     """
     rag_config = config.get("rag", {})
 
-    # Resolver ruta relativa al directorio raíz del proyecto
-    project_root = Path(__file__).parent.parent.parent
-    db_path = str(project_root / rag_config.get("db_path", "data/chroma_db"))
+    # Resolver ruta relativa al directorio raíz del proyecto o ejecutable compilado
+    if getattr(sys, 'frozen', False):
+        base_dir = Path(sys.executable).parent
+    else:
+        base_dir = Path(__file__).parent.parent.parent
+        
+    db_path = str(base_dir / rag_config.get("db_path", "data/chroma_db"))
     collection_name = rag_config.get("collection_name", "normativa_publicidad")
-    model_name = rag_config.get("embedding_model", "paraphrase-multilingual-MiniLM-L12-v2")
+    model_name = rag_config["embedding_model"]
     k_val = rag_config.get("k", 3)
 
     if not os.path.exists(db_path):

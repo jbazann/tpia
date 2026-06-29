@@ -24,7 +24,7 @@ class ImageAgent:
         llm_config = config.get("llm", {})
         self.groq_api_key = os.environ.get(
             llm_config.get("api_key_env_var", "GROQ_API_KEY"), ""
-        )
+        ).strip()
         
         if self.groq_api_key:
             # Imprimir un debug censurado para ayudar al usuario a verificar si Python realmente está leyendo la variable
@@ -32,10 +32,8 @@ class ImageAgent:
             print(f"[DEBUG] ImageAgent leyó la API Key: {masked_key}")
         else:
             print(f"[DEBUG] ImageAgent NO encontró la API Key en el entorno.")
-        # Modelo multimodal; se puede sobrescribir en config.yaml bajo llm.vision_model
-        self.vision_model = llm_config.get(
-            "vision_model", "meta-llama/llama-4-scout-17b-16e-instruct"
-        )
+        # Modelo multimodal desde config.yaml bajo llm.vision_model
+        self.vision_model = llm_config["vision_model"]
 
     def __call__(self, state: EstadoEvaluacion) -> dict:
         solicitud_id = state.get("solicitud_id", "N/A")
@@ -47,6 +45,8 @@ class ImageAgent:
 
         if not self.groq_api_key:
             print("[AGENTE DE IMÁGENES] Advertencia: GROQ_API_KEY no configurada. Solo se ejecutará OCR.")
+            # Si no hay API key, no podemos correr el LLM de visión, evitar 401 Auth Error:
+            return {"analisis_visual": "API Key de Groq no configurada. No se pudo realizar el análisis semántico de las imágenes."}
 
         informe_visual = analyze_pdf_images(
             pdf_path=self.pdf_path,

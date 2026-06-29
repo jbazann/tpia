@@ -29,24 +29,26 @@ En aquellas publicidades gráficas que no sea posible la colocación del zócalo
 En caso que la publicidad no quede encuadrada en ninguno de los anteriores el operador deberá comunicarse previamente con Lotería de Santa Fe para conocer cómo debe realizar la propuesta.
 """
 
-def load_config():
-    # Obtener el directorio de este script (scripts/)
-    script_dir = Path(__file__).parent
-    # Construir ruta a config.yaml (agente/config.yaml)
-    config_path = os.path.join(script_dir.parent, 'config.yaml')
+def load_config(base_dir=None):
+    if base_dir is None:
+        script_dir = Path(__file__).parent
+        base_dir = script_dir.parent
+    
+    config_path = os.path.join(base_dir, 'config.yaml')
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
-def main():
+def main(base_dir=None):
     print("Iniciando ingesta de normativa...")
-    config = load_config()
+    config = load_config(base_dir)
     rag_config = config.get("rag", {})
     
-    # Obtener el directorio raíz del proyecto para asegurar rutas relativas correctas
-    project_root = Path(__file__).parent.parent
-    db_path = os.path.join(project_root, rag_config.get("db_path", "data/chroma_db"))
+    if base_dir is None:
+        base_dir = Path(__file__).parent.parent
+        
+    db_path = os.path.join(base_dir, rag_config.get("db_path", "data/chroma_db"))
     collection_name = rag_config.get("collection_name", "normativa_publicidad")
-    model_name = rag_config.get("embedding_model", "paraphrase-multilingual-MiniLM-L12-v2")
+    model_name = rag_config["embedding_model"]
 
     # ==========================================
     # 2. CHUNKING CONTROLADO POR PUNTOS NORMATIVOS

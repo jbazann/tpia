@@ -43,6 +43,7 @@ else:
 # Importar los módulos principales a nivel de módulo para que PyInstaller los analice y empaquete
 from src.utils.pdf_reader import read_pdf, detect_media_type
 from src.agents.main_agent import MainAgent
+import scripts.init_rag_db
 
 # Manejo de rutas cuando se ejecuta desde un bundle de PyInstaller
 def get_base_path():
@@ -103,7 +104,8 @@ def main():
 
     # Configurar el parseo de argumentos por CLI
     parser = argparse.ArgumentParser(description="Sistema Multiagente para Análisis de PDFs.")
-    parser.add_argument("-f", "--file", dest="pdf_path", required=True, help="Ruta al archivo PDF a procesar.")
+    parser.add_argument("--InitDb", action="store_true", help="Inicializar la base de datos RAG")
+    parser.add_argument("-f", "--file", dest="pdf_path", required=False, help="Ruta al archivo PDF a procesar.")
     parser.add_argument("-p", "--prompt", dest="prompt", default="", help="Prompt o instrucción adicional para el agente.")
     # Imprimir saludo y listar argumentos recibidos al iniciarse
     print("Agente TP IA.")
@@ -123,6 +125,20 @@ def main():
         # Ajustar sys.path para que los imports funcionen dentro del bundle de PyInstaller
         if getattr(sys, 'frozen', False):
             sys.path.insert(0, base_path)
+            
+        if args.InitDb:
+            print("[INFO] Inicializando base de datos RAG...")
+            # Si estamos ejecutando compilado, la DB debe ir junto al ejecutable (sys.executable).parent
+            db_base_dir = Path(sys.executable).parent if getattr(sys, 'frozen', False) else base_path
+            scripts.init_rag_db.main(base_dir=db_base_dir)
+            print("[INFO] Base de datos RAG inicializada correctamente.")
+            sys.exit(0)
+            
+        if not args.pdf_path:
+            error_msg = "Error: El argumento -f / --file es requerido para procesar un PDF."
+            print(error_msg, file=sys.stderr)
+            time.sleep(5)
+            sys.exit(1)
         
         # Cargar configuración: verificar múltiples ubicaciones
         config_path = None

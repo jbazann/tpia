@@ -157,6 +157,7 @@ build_agent() {
         --onefile \
         --name "agente" \
         --add-data "config.yaml:." \
+        --collect-all chromadb \
         --distpath dist \
         --workpath build \
         --clean \
@@ -312,6 +313,40 @@ create_distribution() {
     write_success "[OK] Distribution folder created: $OUTPUT_DIR"
 }
 
+# Clean previous builds
+clean_builds() {
+    write_info "Cleaning previous executables..."
+    rm -f "$OUTPUT_DIR/agente" "$OUTPUT_DIR/agente.exe"
+    rm -f "$OUTPUT_DIR/dashboard" "$OUTPUT_DIR/dashboard.exe" "$OUTPUT_DIR/dashboard-debug" "$OUTPUT_DIR/dashboard-debug.exe"
+    rm -f "$AGENTE_DIR/dist/agente" "$AGENTE_DIR/dist/agente.exe"
+    write_success "[OK] Cleaned previous executables"
+}
+
+# Initialize RAG Database if agent is present
+init_rag_db() {
+    local agent_exe=""
+    if [[ -f "$OUTPUT_DIR/agente" ]]; then
+        agent_exe="$OUTPUT_DIR/agente"
+    elif [[ -f "$OUTPUT_DIR/agente.exe" ]]; then
+        agent_exe="$OUTPUT_DIR/agente.exe"
+    fi
+
+    if [[ -n "$agent_exe" ]]; then
+        write_info "Initializing RAG Database via agent executable..."
+        # We must cd into OUTPUT_DIR so any relative paths stay there, though --InitDb handles it.
+        pushd "$OUTPUT_DIR" > /dev/null
+        if "./$(basename "$agent_exe")" --InitDb; then
+            write_success "[OK] RAG Database initialized in dist/"
+        else
+            write_fail "Failed to initialize RAG Database"
+            popd > /dev/null
+            return 1
+        fi
+        popd > /dev/null
+    fi
+    return 0
+}
+
 # Main build flow
 main() {
     write_info "======================================"
@@ -319,6 +354,9 @@ main() {
     write_info "Build Type: $BUILD_TYPE"
     write_info "======================================"
     echo ""
+
+    # Clean previous builds
+    clean_builds
 
     # Pre-build checks
     if ! test_python_installed; then
@@ -352,6 +390,11 @@ main() {
 
     # Create distribution
     create_distribution
+
+    # Initialize RAG Database
+    if ! init_rag_db; then
+        write_info "Warning: Database initialization failed"
+    fi
 
     echo ""
     write_success "======================================"

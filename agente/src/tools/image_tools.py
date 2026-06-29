@@ -82,7 +82,7 @@ def ocr_image(image_b64: str, ext: str = "png") -> str:
         return ""
 
 
-def describe_image_with_llm(image_b64: str, ext: str, groq_api_key: str, model: str = "meta-llama/llama-4-scout-17b-16e-instruct") -> str:
+def describe_image_with_llm(image_b64: str, ext: str, groq_api_key: str, model: str) -> str:
     """
     Describe el contenido visual de una imagen usando un modelo multimodal vía Groq.
     Retorna una descripción semántica enfocada en elementos de publicidad normativa:
@@ -143,7 +143,7 @@ Sé conciso y técnico."""
         return f"No se pudo analizar la imagen: {str(e)}"
 
 
-def analyze_pdf_images(pdf_path: str, groq_api_key: str, model: str = "meta-llama/llama-4-scout-17b-16e-instruct") -> str:
+def analyze_pdf_images(pdf_path: str, groq_api_key: str, model: str) -> str:
     """
     Pipeline completo de análisis visual de un PDF:
     1. Extrae imágenes

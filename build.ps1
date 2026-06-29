@@ -133,7 +133,7 @@ function Build-Agent {
 
     # Run PyInstaller
     try {
-        & $PythonBin -m PyInstaller --onefile --name "agente" --add-data "$addData" --distpath dist --workpath build --clean main.py --noconfirm
+        & $PythonBin -m PyInstaller --onefile --name "agente" --add-data "$addData" --collect-all chromadb --distpath dist --workpath build --clean main.py --noconfirm
     } catch {
         Write-Fail "PyInstaller failed: $_"
         Set-Location $ScriptDir
@@ -267,6 +267,61 @@ function Create-Distribution {
     Write-Success "[OK] Distribution folder created: $OutputDir"
 }
 
+# Clean previous builds
+function Clean-Builds {
+    Write-Info "Cleaning previous executables..."
+    
+    # Remove from OutputDir
+    $filesToRemove = @(
+        (Join-Path $OutputDir "agente"),
+        (Join-Path $OutputDir "agente.exe"),
+        (Join-Path $OutputDir "dashboard"),
+        (Join-Path $OutputDir "dashboard.exe"),
+        (Join-Path $OutputDir "dashboard-debug"),
+        (Join-Path $OutputDir "dashboard-debug.exe")
+    )
+    foreach ($f in $filesToRemove) {
+        if (Test-Path $f) { Remove-Item $f -Force -ErrorAction SilentlyContinue }
+    }
+    
+    # Remove from Agente dist
+    $agentDistFiles = @(
+        (Join-Path (Join-Path $AgenteDir "dist") "agente"),
+        (Join-Path (Join-Path $AgenteDir "dist") "agente.exe")
+    )
+    foreach ($f in $agentDistFiles) {
+        if (Test-Path $f) { Remove-Item $f -Force -ErrorAction SilentlyContinue }
+    }
+    
+    Write-Success "[OK] Cleaned previous executables"
+}
+
+# Initialize RAG Database if agent is present
+function Init-RagDb {
+    $agentExe = ""
+    if (Test-Path (Join-Path $OutputDir "agente.exe")) {
+        $agentExe = Join-Path $OutputDir "agente.exe"
+    } elseif (Test-Path (Join-Path $OutputDir "agente")) {
+        $agentExe = Join-Path $OutputDir "agente"
+    }
+
+    if ($agentExe -ne "") {
+        Write-Info "Initializing RAG Database via agent executable..."
+        Set-Location $OutputDir
+        try {
+            & $agentExe --InitDb
+            if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq $null) {
+                Write-Success "[OK] RAG Database initialized in dist/"
+            } else {
+                Write-Fail "Failed to initialize RAG Database (exit code $LASTEXITCODE)"
+            }
+        } catch {
+            Write-Fail "Failed to initialize RAG Database: $_"
+        }
+        Set-Location $ScriptDir
+    }
+}
+
 # Main build flow
 function Main {
     Write-Info "======================================"
@@ -274,6 +329,9 @@ function Main {
     Write-Info "Build Type: $BuildType"
     Write-Info "======================================"
     Write-Host ""
+
+    # Clean previous builds
+    Clean-Builds
 
     # Pre-build checks
     if (-not (Test-PythonInstalled)) {
@@ -307,6 +365,9 @@ function Main {
 
     # Create distribution
     Create-Distribution
+    
+    # Initialize RAG Database
+    Init-RagDb
 
     Write-Host ""
     Write-Success "======================================"

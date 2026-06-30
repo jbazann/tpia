@@ -16,7 +16,8 @@ scenarios = [
             "El OCR extrae las leyendas en caracteres negritas legibles: 'SOLO PARA MAYORES DE 18 AÑOS' y "
             "'EL JUGAR COMPULSIVAMENTE ES PERJUDICIAL PARA LA SALUD'. "
             "Al lado derecho se identifica el isologotipo institucional de la Lotería de Santa Fe."
-        )
+        ),
+        "resultado_esperado": "APROBAR"
     },
     {
         "id": "TC-LM-003-RADIO-CON-MUSICA",
@@ -26,7 +27,8 @@ scenarios = [
             "continúa sonando en volumen alto de fondo mientras el locutor enuncia rápidamente al final: "
             "'Solo para mayores de 18 años es un mensaje de Lotería de Santa Fe'."
         ),
-        "analisis_visual_mock": "El PDF no contiene imágenes embebidas. El análisis visual no aplica."
+        "analisis_visual_mock": "El PDF no contiene imágenes embebidas. El análisis visual no aplica.",
+        "resultado_esperado": "RECHAZAR"
     },
     {
         "id": "TC-LM-004-BANNER-HORIZONTAL-AMBIGUO",
@@ -36,7 +38,8 @@ scenarios = [
             "Se analiza una pieza de diseño marquesina rectangular de formato extremadamente alargado (relación de aspecto horizontal de 8:1). "
             "Se detecta al pie un zócalo que ocupa exactamente el 10.0% de la altura total del anuncio con tipografías legibles "
             "y el isologotipo institucional de la Lotería de Santa Fe."
-        )
+        ),
+        "resultado_esperado": "REVISAR"
     },
     {
         "id": "TC-LM-005-OMISION-LEYENDA-SALUD",
@@ -46,7 +49,8 @@ scenarios = [
             "Se observa zócalo reglamentario del 15% de altura. El procesamiento OCR detecta únicamente el fragmento textual: "
             "'SOLO PARA MAYORES DE 18 AÑOS'. No se registra la presencia ni la tipografía de la frase complementaria "
             "sobre el juego compulsivo."
-        )
+        ),
+        "resultado_esperado": "RECHAZAR"
     },
     {
         "id": "TC-AD-006-FUERA-DE-DOMINIO",
@@ -55,7 +59,8 @@ scenarios = [
         "analisis_visual_mock": (
             "Se visualizan gráficos estadísticos de barra sobre consumo histórico hogareño y cuadros de texto con tarifas impositivas comerciales. "
             "No se detectan marcas de casinos, enlaces de juego online ni simbología de apuestas."
-        )
+        ),
+        "resultado_esperado": "RECHAZAR"
     }
 ]
 
@@ -83,9 +88,18 @@ def run_matrix_evaluation():
     
     config = {
         "llm": {
+            "provider": "groq",
             "model": "llama-3.3-70b-versatile",
-            "temperature": 0.1
-        }
+            "vision_model": "qwen/qwen3.6-27b",
+            "temperature": 0.1,
+            "max_tokens": 4096
+        },
+        "rag": {
+            "db_path": "data/chroma_db",
+            "collection_name": "normativa_publicidad",
+            "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+            "k": 3
+        },
     }
     
     # Instanciamos el Agente Coordinador
@@ -114,6 +128,7 @@ def run_matrix_evaluation():
         except Exception as e:
             print(f"❌ Error durante la ejecución del caso {tc['id']}: {e}")
             
+        print(f"👉 RESULTADO ESPERADO: {tc.get('resultado_esperado', 'NO DEFINIDO')}")
         print("-" * 65)
         time.sleep(1)  # Delay para respetar las cuotas de Groq
         

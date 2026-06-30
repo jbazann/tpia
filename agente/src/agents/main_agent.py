@@ -74,6 +74,7 @@ class MainAgent:
         
         final_verdict = None
         final_justification = None
+        partial_results = []
 
         try:
             while loop_counter < max_iterations:
@@ -109,14 +110,20 @@ class MainAgent:
 
                             resultado = self.app.invoke(estado_inicial)
                             
-                            final_verdict = resultado.get('veredicto_final')
-                            final_justification = resultado.get('justificacion_final')
+                            parcial_verdict = resultado.get('veredicto_final')
+                            parcial_justification = resultado.get('justificacion_final')
+                            
+                            partial_results.append({
+                                'rule': rule_name,
+                                'verdict': parcial_verdict,
+                                'justification': parcial_justification
+                            })
 
                             print("\n" + "=" * 55)
                             print(f"RESULTADO DE LA EVALUACIÓN (Regla: '{rule_name}')")
                             print("=" * 55)
-                            print(f"Veredicto : {final_verdict}")
-                            print(f"Dictamen  :\n{final_justification}")
+                            print(f"Veredicto : {parcial_verdict}")
+                            print(f"Dictamen  :\n{parcial_justification}")
                             print("=" * 55 + "\n")
 
                         else:
@@ -139,6 +146,31 @@ class MainAgent:
         finally:
             self.rule_engine.close_session(self.session_id)
             
+            if partial_results:
+                severity = {"APROBAR": 1, "ACEPTAR": 1, "REVISAR": 2, "RECHAZAR": 3}
+                worst_val = 0
+                
+                for res in partial_results:
+                    v = str(res['verdict']).upper() if res['verdict'] else "REVISAR"
+                    val = severity.get(v, 2)
+                    if val > worst_val:
+                        worst_val = val
+                
+                if worst_val == 3:
+                    final_verdict = "RECHAZAR"
+                elif worst_val == 2:
+                    final_verdict = "REVISAR"
+                else:
+                    final_verdict = "APROBAR"
+                    
+                justifs = []
+                for res in partial_results:
+                    rule = res['rule']
+                    v = res['verdict']
+                    j = str(res['justification']).strip()
+                    justifs.append(f"[{rule} - {v}]\n{j}")
+                final_justification = "\n\n".join(justifs)
+
             print("\n" + "★" * 65)
             print("★ RESULTADO FINAL DEL PROCESAMIENTO (RESUMEN)")
             print("★" * 65)

@@ -1,0 +1,13 @@
+{
+  "session_id": "402d9d36-40f9-4ab0-899c-7da3f8a18c8c",
+  "created_at": "2026-06-29T22:40:19.359665",
+  "executed_rules": [
+    9,
+    3,
+    4,
+    7
+  ],
+  "current_step": 4,
+  "is_active": false,
+  "closed_at": "2026-06-29T22:42:09.790591"
+}
